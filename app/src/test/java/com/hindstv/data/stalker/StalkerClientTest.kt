@@ -106,6 +106,20 @@ class StalkerClientTest {
     }
 
     @Test
+    fun `reads the bulk programme guide per channel`() = runTest {
+        val epg = client().epg(periodHours = 6)
+
+        assertEquals("6", portal.requests.last().url.queryParameter("period"))
+        val bbc = epg.getValue("1")
+        assertEquals(2, bbc.size)
+        assertEquals("Breakfast", bbc[0].title)
+        assertEquals(1_000L, bbc[0].start)
+        assertEquals(4_600L, bbc[0].stop)
+        assertEquals("Morning news", bbc[0].description)
+        assertEquals(emptyList<StalkerProgramme>(), epg.getValue("3")) // entries without times are dropped
+    }
+
+    @Test
     fun `unregistered device reports the portal's message`() = runTest {
         portal.blockMessage = "MAC address not registered"
         try {
@@ -164,10 +178,17 @@ class StalkerClientTest {
                     "1" -> js("""{"total_items":3,"max_page_items":2,"data":[${channels[0]},${channels[1]}]}""")
                     else -> js("""{"total_items":3,"max_page_items":2,"data":[${channels[2]}]}""")
                 }
+                "itv/get_epg_info" -> js(EPG)
                 "itv/create_link" -> js("""{"id":"1","cmd":"ffmpeg http://localhost/play/live.php?stream=1&play_token=xyz"}""")
                 else -> js("{}")
             }
         }
+
+        private val EPG = """{"data":{
+            "1":[{"name":"Breakfast","descr":"Morning news","start_timestamp":1000,"stop_timestamp":"4600"},
+                 {"name":"Lunch","start_timestamp":"4600","stop_timestamp":8200}],
+            "3":[{"name":"Broken"}]
+        }}"""
 
         private fun js(body: String) = MockResponse(body = """{"js":$body}""")
     }

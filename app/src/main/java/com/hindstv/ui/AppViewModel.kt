@@ -13,6 +13,8 @@ import com.hindstv.HindsApp
 import com.hindstv.R
 import com.hindstv.data.ChannelRepository
 import com.hindstv.data.db.ChannelRow
+import com.hindstv.data.db.ProgrammeEntity
+import com.hindstv.data.source.SourceProfile
 import com.hindstv.data.stalker.Mac
 import com.hindstv.data.stalker.PortalProfile
 import com.hindstv.data.stalker.StalkerClient
@@ -25,6 +27,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -34,7 +40,7 @@ import kotlinx.coroutines.launch
 
 enum class Screen { Setup, Tv }
 
-enum class Overlay { None, Banner, ChannelList }
+enum class Overlay { None, Banner, ChannelList, Guide }
 
 enum class PlayStatus { Idle, Tuning, Buffering, Playing, Stopped, Error }
 
@@ -49,7 +55,12 @@ data class GenreItem(val id: String, val title: String)
 /** Channels of one group, tagged with the group so the UI never mistakes a stale list for a new one. */
 data class GenreChannels(val genreId: String, val channels: List<ChannelRow>)
 
+enum class SetupMode { Portal, Playlist }
+
 data class SetupForm(
+    val mode: SetupMode = SetupMode.Portal,
+    val playlistUrl: String = "",
+    val epgUrl: String = "",
     val portalUrl: String = "",
     val mac: String = PortalProfile.DEFAULT_MAC_PREFIX,
     val stbType: String = PortalProfile.DEFAULT_STB_TYPE,
@@ -65,6 +76,8 @@ data class SetupUi(
     val progress: String? = null,
     val error: String? = null,
     val canCancel: Boolean = false,
+    /** Set when the user generated a new MAC: it must be registered with the provider. */
+    val generatedMac: String? = null,
 )
 
 sealed interface SyncUi {
@@ -133,6 +146,38 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         .flatMapLatest { repo.channels(it) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    // --- Guide -----------------------------------------------------------------------------------
+
+    /** Bumped whenever new guide data has been stored. */
+    private val _epgRevision = MutableStateFlow(0)
+    val epgRevision: StateFlow<Int> = _epgRevision.asStateFlow()
+
+    /** Wall-clock seconds, ticking on each minute boundary (drives clocks, progress bars, now/next). */
+    val minute: StateFlow<Long> = flow {
+        while (true) {
+            val nowMs = System.currentTimeMillis()
+            emit(nowMs / 1000)
+            delay(60_000 - nowMs % 60_000)
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, System.currentTimeMillis() / 1000)
+
+    /** What is on now, per channel id (for the channel list). */
+    val onAir: StateFlow<Map<String, ProgrammeEntity>> = combine(minute, _epgRevision) { now, _ -> now }
+        .mapLatest { now -> repo.airingAt(now).associateBy { it.channelId } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    /** Now and next for the playing channel (for the info banner). */
+    val nowNext: StateFlow<List<ProgrammeEntity>> = combine(
+        _playback.map { it.channel?.id }.distinctUntilChanged(), minute, _epgRevision,
+    ) { id, now, _ -> id to now }
+        .mapLatest { (id, now) -> if (id == null) emptyList() else repo.nowNext(id, now) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private var epgJob: Job? = null
+
+    suspend fun guide(channelIds: List<String>, fromSec: Long, toSec: Long): List<ProgrammeEntity> =
+        repo.guide(channelIds, fromSec, toSec)
+
     private val zapper = ZapController<ChannelRow>(viewModelScope, SystemClock::uptimeMillis) { tune(it, isRetry = false) }
     private var previousChannel: ChannelRow? = null
     private var autoRetries = 0
@@ -179,8 +224,8 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     init {
         engine.player.addListener(playerListener)
-        store.profile?.let { profile ->
-            engine.setUserAgent(profile.userAgent)
+        if (store.profile != null) {
+            engine.setUserAgent(container.source().userAgent)
             viewModelScope.launch { startup() }
         }
     }
@@ -196,9 +241,11 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         } else {
             _overlay.value = Overlay.ChannelList
         }
+        delay(5_000) // let the first channel start before loading the portal again
         if (System.currentTimeMillis() - store.lastSyncAt > SYNC_MAX_AGE_MS) {
-            delay(5_000) // let the first channel start before loading the portal again
-            syncChannels()
+            syncChannels() // also refreshes the guide
+        } else if (System.currentTimeMillis() - store.lastEpgSyncAt > EPG_MAX_AGE_MS) {
+            syncEpg()
         }
     }
 
@@ -228,13 +275,18 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     /** True when video fills the screen and the remote controls channels rather than focus. */
     val isFullscreen: Boolean
-        get() = _screen.value == Screen.Tv && _overlay.value != Overlay.ChannelList && _playback.value.channel != null
+        get() = _screen.value == Screen.Tv &&
+            (_overlay.value == Overlay.None || _overlay.value == Overlay.Banner) &&
+            _playback.value.channel != null
+
+    val isGuideOpen: Boolean get() = _screen.value == Screen.Tv && _overlay.value == Overlay.Guide
 
     fun onRemote(action: RemoteAction) {
         when (action) {
             RemoteAction.ChannelUp -> zap(+1)
             RemoteAction.ChannelDown -> zap(-1)
             RemoteAction.OpenList -> showChannelList()
+            RemoteAction.OpenGuide -> openGuide()
             RemoteAction.ShowInfo -> showBanner()
             RemoteAction.Recall -> previousChannel?.let { play(it, zapGenre.value) }
             RemoteAction.ToggleFavorite -> _playback.value.channel?.let { toggleFavorite(it.id) }
@@ -254,6 +306,17 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     fun hideChannelList() {
         if (_playback.value.channel != null) _overlay.value = Overlay.None
+    }
+
+    fun openGuide() {
+        bannerJob?.cancel()
+        _selectedGenre.value = zapGenre.value
+        _overlay.value = Overlay.Guide
+    }
+
+    /** Back from the guide: to the video if something is playing, otherwise to the channel list. */
+    fun closeGuide() {
+        _overlay.value = if (_playback.value.channel != null) Overlay.None else Overlay.ChannelList
     }
 
     fun showChannelList() {
@@ -319,6 +382,21 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
             throw e
         } catch (e: Exception) {
             SyncUi.Failed(Errors.describe(e))
+        }
+        if (_sync.value == SyncUi.Idle) syncEpg()
+    }
+
+    /** Refreshes the guide in the background; failures keep the previous guide. */
+    private fun syncEpg() {
+        if (epgJob?.isActive == true) return
+        epgJob = viewModelScope.launch {
+            try {
+                if (repo.syncEpg() > 0) _epgRevision.update { it + 1 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.w("HindsEpg", "Guide update failed: ${e.javaClass.simpleName}")
+            }
         }
     }
 
@@ -388,7 +466,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         if (store.profile == null) return
         watchdogJob = viewModelScope.launch {
             while (isActive) {
-                val client = runCatching { container.stalker() }.getOrNull() ?: return@launch
+                val client = runCatching { container.stalkerOrNull() }.getOrNull() ?: return@launch
                 delay((client.session?.timeslotSeconds ?: DEFAULT_TIMESLOT_S) * 1_000L)
                 try {
                     client.watchdog()
@@ -411,9 +489,17 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         if (_playback.value.channel != null) resumeOnForeground = true
         watchdogJob?.cancel()
         _setup.value = SetupUi(
-            form = profile?.let {
-                SetupForm(it.portalUrl, it.mac, it.stbType, it.serialNumber, it.deviceId, it.deviceId2, it.signature)
-            } ?: SetupForm(),
+            form = when (profile) {
+                is SourceProfile.Stalker -> profile.portal.let {
+                    SetupForm(
+                        mode = SetupMode.Portal, portalUrl = it.portalUrl, mac = it.mac, stbType = it.stbType,
+                        serialNumber = it.serialNumber, deviceId = it.deviceId, deviceId2 = it.deviceId2,
+                        signature = it.signature,
+                    )
+                }
+                is SourceProfile.Playlist -> SetupForm(mode = SetupMode.Playlist, playlistUrl = profile.url, epgUrl = profile.epgUrl)
+                null -> SetupForm()
+            },
             canCancel = profile != null,
         )
         _screen.value = Screen.Setup
@@ -429,39 +515,59 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         _setup.update { it.copy(form = transform(it.form), error = null) }
     }
 
+    /** Creates a new random MAC for the user to register with their provider. */
+    fun generateMac() {
+        val mac = Mac.generate()
+        _setup.update { it.copy(form = it.form.copy(mac = mac), generatedMac = mac, error = null) }
+    }
+
     fun connect() {
         val form = _setup.value.form
-        val mac = Mac.normalize(form.mac)
-        if (mac == null) {
-            _setup.update { it.copy(error = app.getString(R.string.error_invalid_mac)) }
-            return
+        val profile = when (form.mode) {
+            SetupMode.Portal -> {
+                val mac = Mac.normalize(form.mac)
+                if (mac == null) {
+                    _setup.update { it.copy(error = app.getString(R.string.error_invalid_mac)) }
+                    return
+                }
+                val url = form.portalUrl.trim()
+                if (url.isEmpty() || runCatching { StalkerClient.candidateEndpoints(url) }.isFailure) {
+                    _setup.update { it.copy(error = app.getString(R.string.error_invalid_url)) }
+                    return
+                }
+                SourceProfile.Stalker(
+                    PortalProfile(
+                        portalUrl = url,
+                        mac = mac,
+                        stbType = form.stbType,
+                        serialNumber = form.serialNumber.trim(),
+                        deviceId = form.deviceId.trim(),
+                        deviceId2 = form.deviceId2.trim(),
+                        signature = form.signature.trim(),
+                    ),
+                )
+            }
+            SetupMode.Playlist -> {
+                val url = form.playlistUrl.trim()
+                if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                    _setup.update { it.copy(error = app.getString(R.string.error_invalid_playlist)) }
+                    return
+                }
+                SourceProfile.Playlist(url, form.epgUrl.trim())
+            }
         }
-        val url = form.portalUrl.trim()
-        val validUrl = url.isNotEmpty() && runCatching { StalkerClient.candidateEndpoints(url) }.isSuccess
-        if (!validUrl) {
-            _setup.update { it.copy(error = app.getString(R.string.error_invalid_url)) }
-            return
-        }
-        val profile = PortalProfile(
-            portalUrl = url,
-            mac = mac,
-            stbType = form.stbType,
-            serialNumber = form.serialNumber.trim(),
-            deviceId = form.deviceId.trim(),
-            deviceId2 = form.deviceId2.trim(),
-            signature = form.signature.trim(),
-        )
         _setup.update { it.copy(busy = true, error = null, progress = app.getString(R.string.connecting)) }
         viewModelScope.launch {
             try {
-                val client = container.newClient(profile)
-                client.connect()
-                _setup.update { it.copy(progress = "Connected. Loading channels…") }
+                val source = container.newSource(profile)
+                if (source is com.hindstv.data.source.StalkerSource) {
+                    source.client.connect()
+                    _setup.update { it.copy(progress = app.getString(R.string.loading_channels)) }
+                }
                 val profileChanged = store.profile != profile
                 store.profile = profile
-                store.endpoint = client.session?.endpoint
-                container.useClient(client)
-                engine.setUserAgent(profile.userAgent)
+                container.useSource(profile, source)
+                engine.setUserAgent(source.userAgent)
                 val count = repo.sync()
                 if (profileChanged) {
                     store.lastChannelId = null
@@ -473,6 +579,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
                 _selectedGenre.value = ChannelRepository.ALL
                 _overlay.value = Overlay.ChannelList
                 _screen.value = Screen.Tv
+                syncEpg()
                 if (count > 0) onForeground()
             } catch (e: CancellationException) {
                 throw e
@@ -494,6 +601,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         private const val GENRE_FOCUS_DEBOUNCE_MS = 150L
         private const val DEFAULT_TIMESLOT_S = 90
         private const val SYNC_MAX_AGE_MS = 12 * 60 * 60 * 1_000L
+        private const val EPG_MAX_AGE_MS = 4 * 60 * 60 * 1_000L
 
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {

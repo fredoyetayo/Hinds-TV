@@ -19,6 +19,8 @@ internal fun JsonObject.string(key: String): String? = this[key].text()?.trim()?
 
 internal fun JsonObject.int(key: String): Int? = this[key].text()?.trim()?.toIntOrNull()
 
+internal fun JsonObject.long(key: String): Long? = this[key].text()?.trim()?.toLongOrNull()
+
 internal fun JsonObject.flag(key: String): Boolean =
     when (this[key].text()?.trim()?.lowercase()) {
         "1", "true", "yes", "on" -> true

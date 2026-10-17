@@ -17,6 +17,7 @@ profileinstaller = "1.4.1"
 junit = "4.13.2"
 androidxAnnotation = "1.9.1"
 checkerframework = "3.13.0"
+kxml2 = "2.3.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -49,6 +50,7 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
 junit = { module = "junit:junit", version.ref = "junit" }
+kxml2 = { module = "net.sf.kxml:kxml2", version.ref = "kxml2" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

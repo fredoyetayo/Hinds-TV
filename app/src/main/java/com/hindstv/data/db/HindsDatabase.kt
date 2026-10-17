@@ -45,6 +45,19 @@ data class FavoriteEntity(
     val addedAt: Long,
 )
 
+/** Guide entry for one of our channels; times are epoch seconds. A re-syncable cache. */
+@Entity(tableName = "programmes", primaryKeys = ["channelId", "start"], indices = [Index("stop")])
+data class ProgrammeEntity(
+    val channelId: String,
+    val start: Long,
+    val stop: Long,
+    val title: String,
+    val description: String?,
+)
+
+/** What the guide importer needs per channel. */
+data class EpgRef(val channelId: String, val epgId: String?, val name: String)
+
 /** Light projection used by lists and zapping — never load `cmd` etc. for thousands of rows. */
 data class ChannelRow(
     val id: String,
@@ -87,6 +100,9 @@ abstract class ChannelDao {
     @Query("SELECT cmd FROM channels WHERE id = :id")
     abstract suspend fun cmd(id: String): String?
 
+    @Query("SELECT id AS channelId, xmltvId AS epgId, name FROM channels")
+    abstract suspend fun epgRefs(): List<EpgRef>
+
     @Query("SELECT COUNT(*) FROM channels")
     abstract suspend fun channelCount(): Int
 
@@ -121,13 +137,40 @@ abstract class ChannelDao {
     abstract suspend fun isFavorite(channelId: String): Boolean
 }
 
+@Dao
+abstract class EpgDao {
+    /** The programme on now and the one after it. */
+    @Query("SELECT * FROM programmes WHERE channelId = :channelId AND stop > :now ORDER BY start LIMIT 2")
+    abstract suspend fun nowNext(channelId: String, now: Long): List<ProgrammeEntity>
+
+    @Query("SELECT * FROM programmes WHERE start <= :now AND stop > :now")
+    abstract suspend fun airingAt(now: Long): List<ProgrammeEntity>
+
+    @Query(
+        "SELECT * FROM programmes WHERE channelId IN (:channelIds) AND stop > :from AND start < :to " +
+            "ORDER BY channelId, start",
+    )
+    abstract suspend fun window(channelIds: List<String>, from: Long, to: Long): List<ProgrammeEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    abstract suspend fun insert(programmes: List<ProgrammeEntity>)
+
+    @Query("DELETE FROM programmes")
+    abstract suspend fun clear()
+
+    @Query("SELECT COUNT(*) FROM programmes")
+    abstract suspend fun count(): Int
+}
+
 @Database(
-    entities = [ChannelEntity::class, GenreEntity::class, FavoriteEntity::class],
-    version = 1,
+    entities = [ChannelEntity::class, GenreEntity::class, FavoriteEntity::class, ProgrammeEntity::class],
+    version = 2,
     exportSchema = false,
 )
 abstract class HindsDatabase : RoomDatabase() {
     abstract fun channelDao(): ChannelDao
+
+    abstract fun epgDao(): EpgDao
 
     companion object {
         fun create(context: Context): HindsDatabase =

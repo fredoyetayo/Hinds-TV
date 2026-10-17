@@ -8,8 +8,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -29,28 +32,36 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ListItem
-import androidx.tv.material3.ListItemDefaults
+import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import coil3.compose.AsyncImage
 import com.hindstv.R
 import com.hindstv.data.db.ChannelRow
+import com.hindstv.data.db.ProgrammeEntity
 import com.hindstv.ui.AppViewModel
 import com.hindstv.ui.GenreItem
 import com.hindstv.ui.SyncUi
+import com.hindstv.ui.components.ChannelLogo
+import com.hindstv.ui.components.Clock
+import com.hindstv.ui.components.ProgressLine
+import com.hindstv.ui.components.progress
 import com.hindstv.ui.theme.HindsColors
+import com.hindstv.ui.theme.HindsStyle
 
 /**
- * Groups on the left, channels on the right, drawn over the playing video (TiviMate-style).
- * Opens focused on the playing channel. Lists are lazy and keyed, so 10k+ channels stay smooth.
+ * Groups on the left, channels on the right, drawn over the playing video. Opens focused on the
+ * playing channel. Lists are lazy and keyed, so 10k+ channels stay smooth.
  */
 @Composable
 fun ChannelListOverlay(vm: AppViewModel) {
@@ -59,25 +70,43 @@ fun ChannelListOverlay(vm: AppViewModel) {
     val genreChannels by vm.channels.collectAsStateWithLifecycle()
     val playback by vm.playback.collectAsStateWithLifecycle()
     val sync by vm.sync.collectAsStateWithLifecycle()
+    val onAir by vm.onAir.collectAsStateWithLifecycle()
+    val minute by vm.minute.collectAsStateWithLifecycle()
 
-    Row(Modifier.fillMaxHeight().background(HindsColors.Panel)) {
-        GenreColumn(
-            genres = genres,
-            selectedGenre = selectedGenre,
-            sync = sync,
-            onFocused = vm::onGenreFocused,
-            onSelected = vm::selectGenre,
-            onRefresh = vm::refreshChannels,
-            onSettings = vm::openSettings,
-        )
-        val list = genreChannels?.takeIf { it.genreId == selectedGenre }
-        ChannelColumn(
-            genreId = selectedGenre,
-            channels = list?.channels,
-            playingId = playback.channel?.id,
-            onPlay = { vm.play(it, selectedGenre) },
-            onToggleFavorite = vm::toggleFavorite,
-        )
+    Box(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxHeight()) {
+            Row(Modifier.fillMaxHeight().background(HindsColors.Panel)) {
+                GenreColumn(
+                    genres = genres,
+                    selectedGenre = selectedGenre,
+                    sync = sync,
+                    onFocused = vm::onGenreFocused,
+                    onSelected = vm::selectGenre,
+                    onGuide = vm::openGuide,
+                    onRefresh = vm::refreshChannels,
+                    onSettings = vm::openSettings,
+                )
+                val list = genreChannels?.takeIf { it.genreId == selectedGenre }
+                ChannelColumn(
+                    genreId = selectedGenre,
+                    title = genres.firstOrNull { it.id == selectedGenre }?.title.orEmpty(),
+                    channels = list?.channels,
+                    playingId = playback.channel?.id,
+                    onAir = onAir,
+                    nowSec = minute,
+                    onPlay = { vm.play(it, selectedGenre) },
+                    onToggleFavorite = vm::toggleFavorite,
+                )
+            }
+            // Soft edge into the video instead of a hard panel border.
+            Box(
+                Modifier
+                    .width(64.dp)
+                    .fillMaxHeight()
+                    .background(Brush.horizontalGradient(listOf(HindsColors.Panel, Color.Transparent))),
+            )
+        }
+        Clock(minute, Modifier.align(Alignment.TopEnd).padding(top = 32.dp, end = 48.dp))
     }
 }
 
@@ -88,59 +117,75 @@ private fun GenreColumn(
     sync: SyncUi,
     onFocused: (String) -> Unit,
     onSelected: (String) -> Unit,
+    onGuide: () -> Unit,
     onRefresh: () -> Unit,
     onSettings: () -> Unit,
 ) {
-    Column(Modifier.width(280.dp).fillMaxHeight().padding(top = 24.dp)) {
+    Column(Modifier.width(260.dp).fillMaxHeight().padding(top = 32.dp)) {
         Text(
             stringResource(R.string.app_name),
             style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
             color = HindsColors.Accent,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+            modifier = Modifier.padding(horizontal = 28.dp),
+        )
+        Text(
+            stringResource(R.string.groups).uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = HindsColors.Faint,
+            modifier = Modifier.padding(start = 28.dp, top = 20.dp, bottom = 4.dp),
         )
         when (sync) {
-            SyncUi.Running -> SmallNote("Updating channel list…", HindsColors.Muted)
+            SyncUi.Running -> SmallNote(stringResource(R.string.updating_channels), HindsColors.Muted)
             is SyncUi.Failed -> SmallNote(sync.message, HindsColors.Error)
             SyncUi.Idle -> Unit
         }
         LazyColumn(
             modifier = Modifier.focusRestorer().focusGroup(),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
         ) {
             itemsIndexed(genres, key = { _, g -> g.id }) { _, genre ->
                 ListItem(
                     selected = genre.id == selectedGenre,
                     onClick = { onSelected(genre.id) },
                     headlineContent = { Text(genre.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    scale = ListItemDefaults.scale(focusedScale = 1f),
+                    colors = HindsStyle.listItemColors(),
+                    shape = HindsStyle.listItemShape(),
+                    scale = HindsStyle.noScale(),
                     modifier = Modifier.onFocusChanged { if (it.isFocused) onFocused(genre.id) },
                 )
             }
-            item(key = "__refresh") {
-                ListItem(
-                    selected = false,
-                    onClick = onRefresh,
-                    headlineContent = { Text(stringResource(R.string.action_refresh), color = HindsColors.Muted) },
-                    scale = ListItemDefaults.scale(focusedScale = 1f),
-                )
-            }
-            item(key = "__settings") {
-                ListItem(
-                    selected = false,
-                    onClick = onSettings,
-                    headlineContent = { Text(stringResource(R.string.action_settings), color = HindsColors.Muted) },
-                    scale = ListItemDefaults.scale(focusedScale = 1f),
-                )
-            }
+            item(key = "__actions") { Spacer(Modifier.height(16.dp)) }
+            actionItem("__guide", R.string.action_guide, onGuide)
+            actionItem("__refresh", R.string.action_refresh, onRefresh)
+            actionItem("__settings", R.string.action_settings, onSettings)
         }
+    }
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.actionItem(key: String, label: Int, onClick: () -> Unit) {
+    item(key = key) {
+        ListItem(
+            selected = false,
+            onClick = onClick,
+            headlineContent = {
+                Text(stringResource(label), color = LocalContentColor.current.copy(alpha = 0.7f))
+            },
+            colors = HindsStyle.listItemColors(),
+            shape = HindsStyle.listItemShape(),
+            scale = HindsStyle.noScale(),
+        )
     }
 }
 
 @Composable
 private fun ChannelColumn(
     genreId: String,
+    title: String,
     channels: List<ChannelRow>?,
     playingId: String?,
+    onAir: Map<String, ProgrammeEntity>,
+    nowSec: Long,
     onPlay: (ChannelRow) -> Unit,
     onToggleFavorite: (String) -> Unit,
 ) {
@@ -149,19 +194,35 @@ private fun ChannelColumn(
     var initialFocusDone by remember { mutableStateOf(false) }
     val targetIndex = channels?.indexOfFirst { it.id == playingId }?.coerceAtLeast(0) ?: 0
 
-    Box(Modifier.width(500.dp).fillMaxHeight().padding(top = 24.dp)) {
+    Column(Modifier.width(560.dp).fillMaxHeight().padding(top = 32.dp)) {
+        Row(
+            Modifier.padding(horizontal = 28.dp).padding(bottom = 12.dp),
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (channels != null) {
+                Text(
+                    stringResource(R.string.channel_count, channels.size),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = HindsColors.Faint,
+                )
+            }
+        }
         when {
             channels == null -> Unit
             channels.isEmpty() -> SmallNote(stringResource(R.string.no_channels), HindsColors.Muted)
             else -> LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize().focusRestorer().focusGroup(),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp),
             ) {
                 itemsIndexed(channels, key = { _, c -> c.id }) { index, channel ->
                     ChannelItem(
                         channel = channel,
                         playing = channel.id == playingId,
+                        programme = onAir[channel.id],
+                        nowSec = nowSec,
                         onClick = { onPlay(channel) },
                         onMenu = { onToggleFavorite(channel.id) },
                         modifier = if (!initialFocusDone && index == targetIndex) Modifier.focusRequester(initialFocus) else Modifier,
@@ -189,6 +250,8 @@ private fun ChannelColumn(
 private fun ChannelItem(
     channel: ChannelRow,
     playing: Boolean,
+    programme: ProgrammeEntity?,
+    nowSec: Long,
     onClick: () -> Unit,
     onMenu: () -> Unit,
     modifier: Modifier = Modifier,
@@ -196,7 +259,9 @@ private fun ChannelItem(
     ListItem(
         selected = playing,
         onClick = onClick,
-        scale = ListItemDefaults.scale(focusedScale = 1f),
+        colors = HindsStyle.listItemColors(selectedColor = HindsColors.Text),
+        shape = HindsStyle.listItemShape(),
+        scale = HindsStyle.noScale(),
         modifier = modifier.onKeyEvent {
             if (it.type == KeyEventType.KeyDown && it.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_MENU) {
                 onMenu()
@@ -206,37 +271,46 @@ private fun ChannelItem(
             }
         },
         leadingContent = {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     text = if (channel.number > 0) channel.number.toString() else "",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = HindsColors.Muted,
-                    modifier = Modifier.width(44.dp),
+                    color = LocalContentColor.current.copy(alpha = 0.55f),
+                    modifier = Modifier.width(40.dp),
                 )
-                ChannelLogo(channel.logo, Modifier.size(width = 48.dp, height = 32.dp))
+                ChannelLogo(channel.logo, channel.name, Modifier.size(width = 60.dp, height = 38.dp))
             }
         },
-        headlineContent = { Text(channel.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        trailingContent = if (channel.isFavorite) ({ Text("★", color = HindsColors.Accent) }) else null,
+        headlineContent = {
+            Text(channel.name, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+        },
+        supportingContent = programme?.let {
+            {
+                Column {
+                    Text(
+                        it.title,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = LocalContentColor.current.copy(alpha = 0.65f),
+                    )
+                    ProgressLine(it.progress(nowSec), Modifier.width(140.dp).padding(top = 4.dp), height = 2.dp)
+                }
+            }
+        },
+        trailingContent = when {
+            playing -> ({ Text("●", color = HindsColors.Accent) })
+            channel.isFavorite -> ({ Text("★", color = HindsColors.Accent) })
+            else -> null
+        },
     )
 }
 
 @Composable
-fun ChannelLogo(url: String?, modifier: Modifier = Modifier) {
-    if (url == null) {
-        Box(modifier)
-        return
-    }
-    // Coil sizes the decode to this box, so large portal logos never hit memory at full size.
-    AsyncImage(model = url, contentDescription = null, modifier = modifier)
-}
-
-@Composable
-private fun SmallNote(text: String, color: androidx.compose.ui.graphics.Color) {
+private fun SmallNote(text: String, color: Color) {
     Text(
         text,
         style = MaterialTheme.typography.bodySmall,
         color = color,
-        modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 4.dp),
     )
 }

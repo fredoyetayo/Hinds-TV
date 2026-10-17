@@ -1,8 +1,8 @@
 # Hinds TV
 
 A fast, lightweight IPTV player for Amazon Fire TV, built to replace STB Emu. It connects natively to
-Stalker/Ministra ("MAC") portals, keeps your channel list on the device, and is controlled entirely with
-the Fire TV remote.
+Stalker/Ministra ("MAC") portals, and also plays M3U playlists and single stream links. It keeps your
+channel list and TV guide on the device, and is controlled entirely with the Fire TV remote.
 
 It is a player only: it contains no channels or content. You need your own legal IPTV subscription.
 
@@ -33,12 +33,22 @@ Hinds TV appears under **Apps** (Recent / My Library).
 
 ## First-time setup
 
-1. Open Hinds TV and enter your **Portal URL**, exactly as your provider gave it.
+Choose how you connect.
+
+**MAC portal (STB Emu-style)**
+1. Enter your **Portal URL**, exactly as your provider gave it.
 2. Enter the **MAC address** your provider registered. It's the one shown in STB Emu under
    *Settings → Profile → STB configuration*.
+   - Or select **Generate** for a new one. Send it to your provider; it won't work until they register it.
 3. Most portals need nothing else. If yours also checks the serial number, device IDs or signature, copy
    them from STB Emu into *Advanced settings*.
-4. Select **Connect**. Your channels load once and are stored on the TV, so later starts are instant.
+
+**Playlist or link**
+1. Paste an **M3U playlist** link, or a link to a **single stream** such as an `.m3u8`.
+2. Optionally add a **TV guide (XMLTV)** link. If the playlist advertises its own guide, it's used
+   automatically.
+
+Then select **Connect**. Channels and the TV guide are stored on the TV, so later starts are instant.
 
 **Your provider allows one stream at a time.** Close STB Emu (or don't watch on another device with the
 same MAC) while using Hinds TV.
@@ -48,12 +58,20 @@ same MAC) while using Hinds TV.
 | Button | While watching | In the channel list |
 |---|---|---|
 | ▲ ▼ / Channel ▲▼ | Next / previous channel | Move (Channel ▲▼ still zaps) |
-| Select / ◀ / Live (TV) | Open channel list | Play channel |
+| Select / ◀ | Open channel list | Play channel |
+| Live (TV) button | Open TV guide | Open TV guide |
 | ▶ | Show channel info | Move to channels |
 | ☰ Menu | Add/remove favourite | Add/remove favourite |
 | ⏪ | Previous channel | — |
 | ⏯ | Stop / resume | — |
 | Back | Press twice to exit | Close list |
+
+In the **TV guide**:
+- ▲▼ moves between channels.
+- ◀▶ moves between programmes.
+- Channel ▲▼ pages up and down.
+- Select watches the channel.
+- Back or Live closes the guide.
 
 ## Development
 

@@ -44,7 +44,8 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_UP && consumedKeys.remove(event.keyCode)) return true
-        if (vm.screen.value == Screen.Tv) {
+        // The guide handles every key itself (channel paging, Back, Guide to close).
+        if (vm.screen.value == Screen.Tv && !vm.isGuideOpen) {
             val action = RemoteKeys.map(event.keyCode, vm.isFullscreen)
             if (action != null) {
                 if (event.action == KeyEvent.ACTION_DOWN) {
@@ -79,6 +80,7 @@ private fun HindsRoot(vm: AppViewModel) {
             SetupScreen(
                 state = setup,
                 onFormChange = vm::updateForm,
+                onGenerateMac = vm::generateMac,
                 onConnect = vm::connect,
                 onCancel = vm::cancelSetup,
             )
