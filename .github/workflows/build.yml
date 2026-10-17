@@ -70,6 +70,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "v$VERSION_NAME" hinds-tv.apk \
+            --target "$GITHUB_SHA" \
             --title "Hinds TV $VERSION_NAME" \
             --notes "Built from ${GITHUB_SHA::7}. Install: see README (Downloader or adb)." \
             --latest
