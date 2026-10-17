@@ -4,6 +4,7 @@ import androidx.annotation.OptIn
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.HttpDataSource
+import com.hindstv.data.source.PlaylistException
 import com.hindstv.data.stalker.StalkerException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
@@ -12,6 +13,7 @@ import javax.net.ssl.SSLException
 /** Turns failures into one plain-English sentence for the TV screen. */
 object Errors {
     fun describe(e: Throwable): String = when (e) {
+        is PlaylistException -> e.message ?: "The playlist couldn't be loaded."
         is StalkerException.Blocked -> "The portal says: ${e.portalMessage ?: "this device is not allowed."}"
         is StalkerException.NotAPortal -> "Couldn't find an IPTV portal at that address. Check the portal URL."
         is StalkerException.AuthFailed ->

@@ -29,6 +29,17 @@ data class PortalProfile(
 }
 
 object Mac {
+    private val random = java.security.SecureRandom()
+
+    /**
+     * A fresh random MAG-style address (`00:1A:79:xx:xx:xx`) for the user to register with their
+     * own provider, exactly as STB Emu offers. Never used to probe portals.
+     */
+    fun generate(): String {
+        val tail = ByteArray(3).also(random::nextBytes)
+        return PortalProfile.DEFAULT_MAC_PREFIX + tail.joinToString(":") { "%02X".format(it.toInt() and 0xFF) }
+    }
+
     /** Returns the MAC as `AA:BB:CC:DD:EE:FF`, or null if [input] is not 12 hex digits. */
     fun normalize(input: String): String? {
         val hex = input.filter { it.isLetterOrDigit() }.uppercase()

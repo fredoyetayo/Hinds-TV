@@ -11,6 +11,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -107,6 +108,27 @@ class StalkerClient(
         val raw = obj?.string("cmd") ?: obj?.string("url") ?: (js as? JsonPrimitive)?.text()
         val url = raw?.let(::cleanStreamUrl) ?: throw StalkerException.BadResponse("Portal returned no stream URL")
         rewriteLocalhost(url, ep)
+    }
+
+    /**
+     * Programme guide for every channel for the next [periodHours] (`get_epg_info`), keyed by
+     * portal channel id. Ministra treats `period` as hours; the response is size-capped in case a
+     * portal interprets it differently.
+     */
+    suspend fun epg(periodHours: Int): Map<String, List<StalkerProgramme>> = authed { ep, tok ->
+        val js = request(
+            ep, tok, "type" to "itv", "action" to "get_epg_info", "period" to periodHours.toString(),
+            maxBytes = MAX_EPG_BYTES,
+        )
+        val data = (js as? JsonObject)?.get("data") as? JsonObject ?: return@authed emptyMap()
+        data.mapValues { (_, list) ->
+            (list as? JsonArray).orEmpty().filterIsInstance<JsonObject>().mapNotNull { o ->
+                val start = o.long("start_timestamp") ?: return@mapNotNull null
+                val stop = o.long("stop_timestamp") ?: return@mapNotNull null
+                val title = o.string("name") ?: return@mapNotNull null
+                StalkerProgramme(start, stop, title, o.string("descr"))
+            }
+        }
     }
 
     /** Keep-alive the portal expects every `timeslot` seconds while the app is in use. */
@@ -242,6 +264,7 @@ class StalkerClient(
         tok: String?,
         vararg params: Pair<String, String>,
         probe: Boolean = false,
+        maxBytes: Long = MAX_RESPONSE_BYTES,
     ): JsonElement {
         val url = ep.newBuilder().apply {
             params.forEach { (k, v) -> addQueryParameter(k, v) }
@@ -249,11 +272,14 @@ class StalkerClient(
         }.build()
         val request = Request.Builder().url(url).headers(portalHeaders(ep, tok)).get().build()
         val client = if (probe) probeHttp else http
-        return withContext(Dispatchers.IO) { client.newCall(request).await().use { response -> parseResponse(response, ep, tok) } }
+        return withContext(Dispatchers.IO) { client.newCall(request).await().use { response -> parseResponse(response, ep, tok, maxBytes) } }
     }
 
-    private fun parseResponse(response: Response, ep: HttpUrl, tok: String?): JsonElement {
-        val body = response.body.string()
+    private fun parseResponse(response: Response, ep: HttpUrl, tok: String?, maxBytes: Long): JsonElement {
+        // Bounded read: a portal returning far more than expected must not exhaust a 2 GB stick.
+        val source = response.body.source()
+        if (source.request(maxBytes + 1)) throw StalkerException.BadResponse("Portal response too large")
+        val body = source.buffer.readUtf8()
         when (response.code) {
             in 200..299 -> Unit
             401 -> throw StalkerException.AuthFailed("HTTP 401")
@@ -303,7 +329,7 @@ class StalkerClient(
     private fun parseChannel(o: JsonObject, ep: HttpUrl): StalkerChannel? {
         val id = o.string("id") ?: return null
         val cmd = o.string("cmd")
-            ?: ((o["cmds"] as? kotlinx.serialization.json.JsonArray)?.firstOrNull() as? JsonObject)?.string("url")
+            ?: ((o["cmds"] as? JsonArray)?.firstOrNull() as? JsonObject)?.string("url")
             ?: return null
         return StalkerChannel(
             id = id,
@@ -322,6 +348,8 @@ class StalkerClient(
 
     companion object {
         const val MIN_REAUTH_INTERVAL_MS = 60_000L
+        private const val MAX_RESPONSE_BYTES = 48L * 1024 * 1024
+        private const val MAX_EPG_BYTES = 40L * 1024 * 1024
         private const val PAGE_PARALLELISM = 4
         private const val MAX_PAGES = 2_000
         private const val VER_STRING =

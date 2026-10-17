@@ -2,47 +2,68 @@ package com.hindstv.data
 
 import android.content.Context
 import androidx.core.content.edit
+import com.hindstv.data.source.SourceProfile
 import com.hindstv.data.stalker.PortalProfile
 
 /** Small key-value settings. Portal credentials stay on the device and are never logged. */
 class ProfileStore(context: Context) {
     private val prefs = context.getSharedPreferences("hinds", Context.MODE_PRIVATE)
 
-    var profile: PortalProfile?
-        get() {
-            val url = prefs.getString(KEY_URL, null) ?: return null
-            val mac = prefs.getString(KEY_MAC, null) ?: return null
-            return PortalProfile(
-                portalUrl = url,
-                mac = mac,
-                stbType = prefs.getString(KEY_STB, null) ?: PortalProfile.DEFAULT_STB_TYPE,
-                serialNumber = prefs.getString(KEY_SN, null).orEmpty(),
-                deviceId = prefs.getString(KEY_DEVICE_ID, null).orEmpty(),
-                deviceId2 = prefs.getString(KEY_DEVICE_ID2, null).orEmpty(),
-                signature = prefs.getString(KEY_SIGNATURE, null).orEmpty(),
-                timezone = prefs.getString(KEY_TZ, null) ?: PortalProfile.DEFAULT_TIMEZONE,
-            )
+    var profile: SourceProfile?
+        get() = when (prefs.getString(KEY_TYPE, TYPE_STALKER)) {
+            TYPE_PLAYLIST -> prefs.getString(KEY_PLAYLIST_URL, null)?.let {
+                SourceProfile.Playlist(it, prefs.getString(KEY_EPG_URL, null).orEmpty())
+            }
+            else -> stalkerProfile()?.let(SourceProfile::Stalker)
         }
         set(value) = prefs.edit {
-            if (value == null) {
-                listOf(KEY_URL, KEY_MAC, KEY_STB, KEY_SN, KEY_DEVICE_ID, KEY_DEVICE_ID2, KEY_SIGNATURE, KEY_TZ, KEY_ENDPOINT)
-                    .forEach(::remove)
-            } else {
-                putString(KEY_URL, value.portalUrl)
-                putString(KEY_MAC, value.mac)
-                putString(KEY_STB, value.stbType)
-                putString(KEY_SN, value.serialNumber)
-                putString(KEY_DEVICE_ID, value.deviceId)
-                putString(KEY_DEVICE_ID2, value.deviceId2)
-                putString(KEY_SIGNATURE, value.signature)
-                putString(KEY_TZ, value.timezone)
+            ALL_PROFILE_KEYS.forEach(::remove)
+            when (value) {
+                null -> Unit
+                is SourceProfile.Playlist -> {
+                    putString(KEY_TYPE, TYPE_PLAYLIST)
+                    putString(KEY_PLAYLIST_URL, value.url)
+                    putString(KEY_EPG_URL, value.epgUrl)
+                }
+                is SourceProfile.Stalker -> {
+                    val p = value.portal
+                    putString(KEY_TYPE, TYPE_STALKER)
+                    putString(KEY_URL, p.portalUrl)
+                    putString(KEY_MAC, p.mac)
+                    putString(KEY_STB, p.stbType)
+                    putString(KEY_SN, p.serialNumber)
+                    putString(KEY_DEVICE_ID, p.deviceId)
+                    putString(KEY_DEVICE_ID2, p.deviceId2)
+                    putString(KEY_SIGNATURE, p.signature)
+                    putString(KEY_TZ, p.timezone)
+                }
             }
         }
+
+    private fun stalkerProfile(): PortalProfile? {
+        val url = prefs.getString(KEY_URL, null) ?: return null
+        val mac = prefs.getString(KEY_MAC, null) ?: return null
+        return PortalProfile(
+            portalUrl = url,
+            mac = mac,
+            stbType = prefs.getString(KEY_STB, null) ?: PortalProfile.DEFAULT_STB_TYPE,
+            serialNumber = prefs.getString(KEY_SN, null).orEmpty(),
+            deviceId = prefs.getString(KEY_DEVICE_ID, null).orEmpty(),
+            deviceId2 = prefs.getString(KEY_DEVICE_ID2, null).orEmpty(),
+            signature = prefs.getString(KEY_SIGNATURE, null).orEmpty(),
+            timezone = prefs.getString(KEY_TZ, null) ?: PortalProfile.DEFAULT_TIMEZONE,
+        )
+    }
 
     /** The API endpoint found by discovery; reusing it skips probing on every launch. */
     var endpoint: String?
         get() = prefs.getString(KEY_ENDPOINT, null)
         set(value) = prefs.edit { putString(KEY_ENDPOINT, value) }
+
+    /** XMLTV URL advertised by the playlist header on the last sync. */
+    var discoveredEpgUrl: String?
+        get() = prefs.getString(KEY_DISCOVERED_EPG, null)
+        set(value) = prefs.edit { putString(KEY_DISCOVERED_EPG, value) }
 
     var lastChannelId: String?
         get() = prefs.getString(KEY_LAST_CHANNEL, null)
@@ -57,7 +78,16 @@ class ProfileStore(context: Context) {
         get() = prefs.getLong(KEY_LAST_SYNC, 0L)
         set(value) = prefs.edit { putLong(KEY_LAST_SYNC, value) }
 
+    var lastEpgSyncAt: Long
+        get() = prefs.getLong(KEY_LAST_EPG_SYNC, 0L)
+        set(value) = prefs.edit { putLong(KEY_LAST_EPG_SYNC, value) }
+
     private companion object {
+        const val KEY_TYPE = "source_type"
+        const val TYPE_STALKER = "stalker"
+        const val TYPE_PLAYLIST = "playlist"
+        const val KEY_PLAYLIST_URL = "playlist_url"
+        const val KEY_EPG_URL = "epg_url"
         const val KEY_URL = "portal_url"
         const val KEY_MAC = "mac"
         const val KEY_STB = "stb_type"
@@ -67,8 +97,14 @@ class ProfileStore(context: Context) {
         const val KEY_SIGNATURE = "signature"
         const val KEY_TZ = "timezone"
         const val KEY_ENDPOINT = "endpoint"
+        const val KEY_DISCOVERED_EPG = "discovered_epg_url"
         const val KEY_LAST_CHANNEL = "last_channel"
         const val KEY_LAST_GENRE = "last_genre"
         const val KEY_LAST_SYNC = "last_sync"
+        const val KEY_LAST_EPG_SYNC = "last_epg_sync"
+        val ALL_PROFILE_KEYS = listOf(
+            KEY_TYPE, KEY_PLAYLIST_URL, KEY_EPG_URL, KEY_URL, KEY_MAC, KEY_STB, KEY_SN, KEY_DEVICE_ID,
+            KEY_DEVICE_ID2, KEY_SIGNATURE, KEY_TZ, KEY_ENDPOINT, KEY_DISCOVERED_EPG,
+        )
     }
 }

@@ -11,7 +11,10 @@ import com.hindstv.core.Http
 import com.hindstv.data.ChannelRepository
 import com.hindstv.data.ProfileStore
 import com.hindstv.data.db.HindsDatabase
-import com.hindstv.data.stalker.PortalProfile
+import com.hindstv.data.source.ChannelSource
+import com.hindstv.data.source.PlaylistSource
+import com.hindstv.data.source.SourceProfile
+import com.hindstv.data.source.StalkerSource
 import com.hindstv.data.stalker.StalkerClient
 import com.hindstv.player.PlayerEngine
 import okio.Path.Companion.toOkioPath
@@ -40,25 +43,39 @@ class AppContainer(private val app: Application) {
     val http by lazy { Http.createClient() }
     val profileStore by lazy { ProfileStore(app) }
     val database by lazy { HindsDatabase.create(app) }
-    val channels by lazy { ChannelRepository(database.channelDao(), profileStore) { stalker() } }
+    val channels by lazy { ChannelRepository(database.channelDao(), database.epgDao(), profileStore) { source() } }
     val player by lazy { PlayerEngine(app, http) }
 
-    @Volatile private var client: StalkerClient? = null
+    @Volatile private var source: ChannelSource? = null
+    @Volatile private var sourceProfile: SourceProfile? = null
 
-    /** The client for the saved profile, reusing its session while the profile is unchanged. */
-    fun stalker(): StalkerClient {
-        val profile = profileStore.profile ?: error("No portal profile configured")
-        client?.takeIf { it.profile == profile }?.let { return it }
+    /** The source for the saved profile, reused (with its portal session) while the profile is unchanged. */
+    fun source(): ChannelSource {
+        val profile = profileStore.profile ?: error("No source configured")
+        source?.takeIf { sourceProfile == profile }?.let { return it }
         return synchronized(this) {
-            client?.takeIf { it.profile == profile }
-                ?: StalkerClient(http, profile, profileStore.endpoint).also { client = it }
+            source?.takeIf { sourceProfile == profile } ?: newSource(profile, profileStore.endpoint).also {
+                source = it
+                sourceProfile = profile
+            }
         }
     }
 
-    /** A client for a profile that is not saved yet (setup screen); always rediscovers the endpoint. */
-    fun newClient(profile: PortalProfile) = StalkerClient(http, profile)
+    /** The portal client when the saved profile is a Stalker portal (for the keep-alive). */
+    fun stalkerOrNull(): StalkerClient? = if (profileStore.profile is SourceProfile.Stalker) {
+        (source() as? StalkerSource)?.client
+    } else {
+        null
+    }
 
-    fun useClient(newClient: StalkerClient) {
-        client = newClient
+    /** A source for a profile that is not saved yet (setup screen); portals rediscover their endpoint. */
+    fun newSource(profile: SourceProfile, knownEndpoint: String? = null): ChannelSource = when (profile) {
+        is SourceProfile.Stalker -> StalkerSource(StalkerClient(http, profile.portal, knownEndpoint))
+        is SourceProfile.Playlist -> PlaylistSource(http, profile) { profileStore.discoveredEpgUrl }
+    }
+
+    fun useSource(profile: SourceProfile, newSource: ChannelSource) = synchronized(this) {
+        source = newSource
+        sourceProfile = profile
     }
 }

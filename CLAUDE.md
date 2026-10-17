@@ -2,7 +2,8 @@
 
 A fast, lean IPTV player for **Amazon Fire TV**, sideloaded, driven entirely by the Fire TV remote.
 It replaces STB Emu for the owner's **legal** IPTV subscription, which is a **Stalker/Ministra "MAC" portal**:
-a portal URL plus a MAC address registered with the provider.
+a portal URL plus a MAC address registered with the provider. It also plays **M3U playlists** and single
+stream links (HLS/TS), with an XMLTV guide.
 
 - **Target device:** Fire TV Stick 4K Max (2nd gen, `AFTKRT`). It runs Fire OS 8 (Android 11, API 30) on a
   32-bit ARM userspace (armeabi-v7a), with 2 GB RAM and a weak PowerVR GE9215 GPU.
@@ -33,7 +34,9 @@ a portal URL plus a MAC address registered with the provider.
    - Zapping goes through `ZapController`, which debounces bursts so portals don't rate-limit (HTTP 429/458).
 5. **Clean-room protocol code.** Use the protocol facts in `docs/RESEARCH.md`.
    - Never copy code from GPL clients (pvr.stalker, stalkerhek, OwnTV, stalkervod) or unlicensed ones (STB-Proxy).
-   - Never generate, guess or scan MAC addresses or device identities. The user supplies them.
+   - Never guess or scan MAC addresses or device identities, and never probe portals with made-up ones.
+   - The setup screen may *generate* one fresh random `00:1A:79` MAC for the user to register with their own
+     provider (as STB Emu does). It's shown to the user and never auto-tried against other portals.
 6. **Never log or commit credentials.** That covers portal URLs, MACs and tokens. The owner's portal details
    live only on the TV.
 
@@ -44,21 +47,28 @@ app/src/main/java/com/hindstv/
   HindsApp.kt                  Application + AppContainer (lazy manual DI) + Coil image loader
   core/Http.kt                 the single shared OkHttpClient, Call.await()
   data/stalker/                Stalker portal client: pure Kotlin, JVM-unit-testable, no android.*
-    StalkerClient.kt           discovery, handshake/get_profile, re-auth, channels, create_link, watchdog
+    StalkerClient.kt           discovery, handshake/get_profile, re-auth, channels, create_link, EPG, watchdog
     StalkerModels.kt           session/genre/channel models + StalkerException hierarchy
     StalkerJson.kt             tolerant JSON accessors (portals mix "1"/1/true, strings/numbers)
     PortalProfile.kt           profile (URL, MAC, STB model, optional device IDs) + Mac.normalize
-  data/db/HindsDatabase.kt     Room: channels, genres (re-syncable cache), favorites (user data)
-  data/ChannelRepository.kt    sync portal → DB; UI reads only from the DB; stream URL resolution
+  data/source/                 ChannelSource abstraction: one interface, two providers
+    ChannelSource.kt           SourceProfile (Stalker | Playlist), SourceChannel, Programme, PlaylistException
+    StalkerSource.kt           wraps StalkerClient (channels, create_link, get_epg_info)
+    PlaylistSource.kt          M3U playlist or single stream link; XMLTV guide (gzip-aware)
+    M3uParser.kt               line-streaming extended M3U parser (pure Kotlin)
+    XmltvParser.kt             XmlPullParser-streaming XMLTV parser (pure Kotlin, kxml2 in tests)
+  data/db/HindsDatabase.kt     Room: channels, genres, programmes (re-syncable caches), favorites (user data)
+  data/ChannelRepository.kt    sync source → DB, guide sync; UI reads only from the DB; stream URL resolution
   data/ProfileStore.kt         SharedPreferences: profile, cached endpoint, last channel/group, last sync
   player/PlayerEngine.kt       the one ExoPlayer: tuned LoadControl, OkHttp data source, TS flags, FFmpeg ext
   player/ZapController.kt      zap debouncing (lone press = instant, bursts settle 500 ms)
   ui/AppViewModel.kt           all UI state: screen, overlays, playback, zapping, setup, sync, watchdog
   ui/MainActivity.kt           full-screen remote handling in dispatchKeyEvent; lifecycle → VM
   ui/RemoteKeys.kt             keycode → RemoteAction mapping
-  ui/tv/                       TvScreen (video, banner, toasts), ChannelListOverlay (groups + channels)
-  ui/setup/SetupScreen.kt      portal URL + MAC (+ advanced identity fields)
-  ui/components/TvTextField.kt D-pad-safe text input
+  ui/tv/                       TvScreen (video, info banner, toasts), ChannelListOverlay, GuideOverlay
+  ui/setup/SetupScreen.kt      MAC portal (URL, MAC + Generate, advanced) or playlist/link (+ XMLTV)
+  ui/components/               TvTextField (D-pad-safe input), Common (clock, logo tile, progress, time formats)
+  ui/theme/Theme.kt            "modern minimal" palette and shared focus styling (HindsStyle)
 ffmpeg-audio/                  Media3 FFmpeg *audio* decoder (MP2/AC3/E-AC3/DTS/TrueHD), prebuilt LGPL .so
 tools/fake-portal/             fake Stalker portal + test streams for development without a subscription
 ```
@@ -67,18 +77,21 @@ tools/fake-portal/             fake Stalker portal + test streams for developmen
 - **Launch.**
   1. If a profile exists, the app plays the last channel immediately. The portal endpoint is cached, so
      there's no discovery.
-  2. Channels come from the DB.
-  3. The DB refreshes in the background if older than 12 h.
+  2. Channels and the guide come from the DB.
+  3. Channels refresh in the background if older than 12 h; the guide if older than 4 h (it covers 2 h
+     back to 12 h ahead).
 - **Full screen.**
   - ▲/▼ and CH± zap within the current group.
-  - Select, ◀ or Guide opens the overlay.
+  - Select or ◀ opens the channel list. The Live/Guide (TV) key opens the TV guide from anywhere.
   - ▶ shows the info banner.
   - ⏪ goes to the previous channel.
   - ☰ toggles favourite.
   - ⏯ stops or resumes (live TV is released, not paused).
   - Back twice exits.
-- **Overlay.** Groups on the left (focus previews a group, debounced), channels on the right. Select plays,
-  ☰ toggles favourite, Back closes.
+- **Overlay.** Groups on the left (focus previews a group, debounced), channels on the right with what's on now.
+  Select plays, ☰ toggles favourite, Back closes. Footer: TV guide, Refresh channels, Settings.
+- **Guide.** One focusable Canvas for the current group: ▲▼ channel, ◀▶ programme, CH± page, Select plays,
+  Back or Guide closes. `MainActivity` passes every key through while the guide is open.
 - **Background (`onStop`).** Playback stops, which frees the decoder and the provider connection (Amazon
   requirement). It resumes on `onStart`.
 
@@ -99,7 +112,9 @@ cloud sessions and writes `local.properties`. Locally, set `ANDROID_HOME`.
 tools/fake-portal/make-test-streams.sh build/test-streams
 python3 tools/fake-portal/fake_portal.py --port 8080 --media build/test-streams
 ```
-Then use portal `http://10.0.2.2:8080/c/` on the emulator, with any MAC starting `00:1A:79`.
+Then use portal `http://10.0.2.2:8080/c/` on the emulator, with any MAC starting `00:1A:79`, or the
+playlist `http://10.0.2.2:8080/playlist.m3u` (it advertises its XMLTV guide at `/epg.xml`). The portal
+serves `get_epg_info` too.
 
 **Emulator smoke test.**
 - Cloud containers have no KVM, so the emulator runs in software. Expect about 10 minutes to boot and
@@ -110,8 +125,9 @@ Then use portal `http://10.0.2.2:8080/c/` on the emulator, with any MAC starting
   emulator -avd hindstv -no-window -no-audio -no-boot-anim -accel off -gpu swiftshader_indirect -no-snapshot &
   adb install -r app/build/outputs/apk/debug/app-debug.apk   # built with -Phinds.abis=x86
   ```
-- Typing through the IME is too slow there. Seed the profile instead: write `shared_prefs/hinds.xml` with
-  `portal_url` and `mac` via `adb shell run-as com.hindstv.app.debug`.
+- Typing through the IME is too slow there. Seed the profile instead: write `shared_prefs/hinds.xml` via
+  `adb shell run-as com.hindstv.app.debug`, either with `portal_url` and `mac`, or with `source_type=playlist`
+  and `playlist_url`.
 - Drive the app with `adb shell input keyevent DPAD_*` and capture it with `adb exec-out screencap -p`.
 
 **Gotchas:**
@@ -167,16 +183,20 @@ Then use portal `http://10.0.2.2:8080/c/` on the emulator, with any MAC starting
   - Channel DB, setup screen.
   - Full-screen player with debounced zapping, overlay channel list, favourites, last-channel resume.
   - FFmpeg audio.
+- [x] **v0.2.**
+  - M3U playlists and single stream links, with XMLTV guide.
+  - Generate MAC.
+  - Guide: Stalker `get_epg_info` + XMLTV into Room, now/next in banner and list, custom-drawn guide grid.
+  - "Modern minimal" redesign.
 - [ ] **Phase 1 — Prove it on the stick.**
   - Install on the 4K Max and connect to the real portal. Fix any portal quirks.
   - Measure the start, zap and memory budgets.
   - Confirm keycodes for Guide/Recents.
   - Check MP2 audio and 576i/1080i deinterlacing.
-- [ ] **Phase 2 — Guide.**
-  - EPG sync (`get_epg_info`, optional XMLTV) into Room.
-  - Now/next in banner and list.
-  - Custom-drawn EPG grid (single focus target; never thousands of focusable cells).
+- [ ] **Phase 2 — Guide extras.**
   - Channel search (FTS4).
+  - Group switcher inside the guide.
+  - Per-channel `get_short_epg` fallback for portals without bulk EPG.
 - [ ] **Phase 3 — Polish.**
   - MediaSession.
   - Baseline Profile (generated on an emulator).
@@ -185,7 +205,7 @@ Then use portal `http://10.0.2.2:8080/c/` on the emulator, with any MAC starting
   - Settings screen (invert ▲/▼, buffer size, AFR).
   - Parental PIN for censored groups.
   - Account expiry display (`account_info`).
-- [ ] **Phase 4 — More sources.** Xtream Codes API, M3U + XMLTV, multiple profiles.
+- [ ] **Phase 4 — More sources.** Xtream Codes API, multiple profiles, per-playlist user agent.
 - [ ] **Phase 5 — VOD, series, catch-up.**
   - Ministra VOD and all three series models.
   - `tv_archive`.
@@ -197,3 +217,6 @@ Then use portal `http://10.0.2.2:8080/c/` on the emulator, with any MAC starting
 - The channel list is parsed as a JSON tree. Switch to streaming if a portal returns more than about 50k
   channels.
 - HLS live offset tuning is untested.
+- Stalker `get_epg_info` `period` is treated as hours (12). The response is capped at 40 MB in case a portal
+  reads it as days.
+- Playlist streams use the `HindsTV/0.2` user agent. Some providers may need a VLC-like one.

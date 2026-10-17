@@ -28,6 +28,14 @@ data class StalkerChannel(
     val censored: Boolean,
 )
 
+/** One guide entry; times are epoch seconds. */
+data class StalkerProgramme(
+    val start: Long,
+    val stop: Long,
+    val title: String,
+    val description: String?,
+)
+
 /** Failures the UI can explain to the user. All extend IOException so callers can catch broadly. */
 sealed class StalkerException(message: String, cause: Throwable? = null) : IOException(message, cause) {
     /** Nothing at the URL behaves like a portal (HTML page, 404, wrong path). */

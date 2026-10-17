@@ -7,13 +7,15 @@ watchdog) plus test MPEG-TS streams. Standard library only.
     python3 tools/fake-portal/fake_portal.py --port 8080 --media /path/to/ts-files
 
 Point the app at http://<this-machine>:8080/c/ (from the Android emulator: http://10.0.2.2:8080/c/)
-with any MAC starting 00:1A:79. Stream files are served from --media as <n>.ts; make test
+with any MAC starting 00:1A:79, or use "Playlist or link" with http://10.0.2.2:8080/playlist.m3u
+(its header advertises the XMLTV guide at /epg.xml). Stream files are served from --media as <n>.ts; make test
 streams with tools/fake-portal/make-test-streams.sh.
 """
 import argparse
 import json
 import os
 import secrets
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
@@ -53,6 +55,27 @@ def channels(host):
     return out
 
 
+SHOWS = ["Morning News", "Cooking Hour", "Quiz Time", "Nature Live", "Evening Drama", "Late Film",
+         "Sport Tonight", "Weather", "Documentary", "Comedy Classics"]
+
+
+def programmes(channel_index, hours=12):
+    """Half-hour/hour programmes from 2 h ago, deterministic per channel."""
+    start = int(time.time()) // 1800 * 1800 - 7200
+    out, t, i = [], start, channel_index
+    while t < start + hours * 3600:
+        length = 1800 if (i % 3) else 3600
+        out.append({"name": SHOWS[i % len(SHOWS)], "descr": f"Episode {i} of {SHOWS[i % len(SHOWS)]}.",
+                    "start_timestamp": t, "stop_timestamp": t + length})
+        t += length
+        i += 1
+    return out
+
+
+def xmltv_time(t):
+    return time.strftime("%Y%m%d%H%M%S +0000", time.gmtime(t))
+
+
 class Portal(BaseHTTPRequestHandler):
     tokens = set()
     media_dir = "."
@@ -82,6 +105,10 @@ class Portal(BaseHTTPRequestHandler):
         q = {k: v[0] for k, v in parse_qs(url.query, keep_blank_values=True).items()}
         if url.path == "/c/" or url.path == "/c/index.html":
             return self.send_text("<html><body>MAG portal UI</body></html>", ctype="text/html")
+        if url.path == "/playlist.m3u":
+            return self.serve_playlist()
+        if url.path == "/epg.xml":
+            return self.serve_xmltv()
         if url.path.startswith("/play/"):
             return self.serve_stream(q.get("stream", "1"))
         if url.path != "/server/load.php":
@@ -109,9 +136,31 @@ class Portal(BaseHTTPRequestHandler):
         if call == "itv/create_link":
             n = q.get("cmd", "").rsplit("/", 1)[-1]
             return self.send_json({"id": n, "cmd": f"ffmpeg http://localhost/play/live.php?stream={n}&extension=ts&play_token={secrets.token_hex(4)}"})
+        if call == "itv/get_epg_info":
+            return self.send_json({"data": {str(i): programmes(i) for i in range(1, 41)}})
         if call == "watchdog/get_events":
             return self.send_json({"data": {"msgs": 0}})
         return self.send_json({})
+
+    def serve_playlist(self):
+        host = self.headers.get("Host")
+        lines = [f'#EXTM3U url-tvg="http://{host}/epg.xml"']
+        for i, (genre, name) in enumerate(CHANNEL_NAMES, start=1):
+            group = {"1": "Entertainment", "2": "News", "3": "Sport"}[genre]
+            lines.append(f'#EXTINF:-1 tvg-id="ch{i}.test" tvg-chno="{i}" group-title="{group}",{name}')
+            lines.append(f"http://{host}/play/live.php?stream={i}&extension=ts")
+        self.send_text("\n".join(lines) + "\n", ctype="audio/x-mpegurl")
+
+    def serve_xmltv(self):
+        parts = ['<?xml version="1.0" encoding="UTF-8"?>', "<tv>"]
+        for i, (_, name) in enumerate(CHANNEL_NAMES, start=1):
+            parts.append(f'<channel id="ch{i}.test"><display-name>{name}</display-name></channel>')
+        for i in range(1, len(CHANNEL_NAMES) + 1):
+            for p in programmes(i):
+                parts.append(f'<programme start="{xmltv_time(p["start_timestamp"])}" stop="{xmltv_time(p["stop_timestamp"])}" '
+                             f'channel="ch{i}.test"><title>{p["name"]}</title><desc>{p["descr"]}</desc></programme>')
+        parts.append("</tv>")
+        self.send_text("\n".join(parts), ctype="application/xml")
 
     def serve_stream(self, n):
         files = sorted(f for f in os.listdir(Portal.media_dir) if f.endswith(".ts"))

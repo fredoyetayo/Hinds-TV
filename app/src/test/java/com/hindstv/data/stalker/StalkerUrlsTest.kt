@@ -3,6 +3,7 @@ package com.hindstv.data.stalker
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class StalkerUrlsTest {
@@ -69,6 +70,16 @@ class StalkerUrlsTest {
         assertEquals("http://host/stalker_portal/misc/logos/320/a.png", StalkerClient.logoUrl("a.png", ep))
         assertEquals("http://host/logos/a.png", StalkerClient.logoUrl("/logos/a.png", ep))
         assertEquals("https://cdn/a.png", StalkerClient.logoUrl("https://cdn/a.png", ep))
+    }
+
+    @Test
+    fun `generated macs are fresh MAG-style addresses`() {
+        val macs = List(20) { Mac.generate() }
+        macs.forEach { mac ->
+            assertTrue(mac, Regex("00:1A:79:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}").matches(mac))
+            assertEquals(mac, Mac.normalize(mac))
+        }
+        assertTrue(macs.toSet().size > 15)
     }
 
     @Test
