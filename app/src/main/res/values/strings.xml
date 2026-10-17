@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Hinds TV</string>
+
+    <string name="setup_title">Connect your IPTV portal</string>
+    <string name="setup_subtitle">Enter the details your provider gave you. Use the same MAC address that is registered with them (the one shown in STB Emu).</string>
+    <string name="field_portal_url">Portal URL</string>
+    <string name="field_mac">MAC address</string>
+    <string name="field_stb_model">STB model</string>
+    <string name="field_serial">Serial number (optional)</string>
+    <string name="field_device_id">Device ID 1 (optional)</string>
+    <string name="field_device_id2">Device ID 2 (optional)</string>
+    <string name="field_signature">Signature (optional)</string>
+    <string name="field_empty">Not set</string>
+    <string name="advanced_show">Show advanced settings</string>
+    <string name="advanced_hide">Hide advanced settings</string>
+    <string name="connect">Connect</string>
+    <string name="cancel">Cancel</string>
+    <string name="connecting">Connecting to portal…</string>
+    <string name="error_invalid_url">Enter the portal URL, for example http://example.com/c/</string>
+    <string name="about_line">Hinds TV %1$s · Audio decoding by FFmpeg (LGPL 2.1), source and build script in the project repository.</string>
+    <string name="error_invalid_mac">Enter a MAC address like 00:1A:79:12:34:56</string>
+
+    <string name="genre_favorites">★ Favourites</string>
+    <string name="genre_all">All channels</string>
+    <string name="action_refresh">⟳ Refresh channel list</string>
+    <string name="action_settings">⚙ Portal settings</string>
+    <string name="no_channels">No channels in this group</string>
+    <string name="favorite_hint">Menu ☰ adds or removes a favourite</string>
+
+    <string name="press_back_to_exit">Press Back again to exit</string>
+    <string name="added_to_favorites">Added to favourites</string>
+    <string name="removed_from_favorites">Removed from favourites</string>
+    <string name="tuning">Tuning…</string>
+    <string name="stopped">Stopped. Press ⏯ to resume.</string>
+</resources>

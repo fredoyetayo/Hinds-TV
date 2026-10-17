@@ -19,7 +19,7 @@ Main caveats:
 
 ## 2. The device
 
-A 4K stick bought in July 2025 (UK Prime Day was 8–11 Jul 2025) is one of the two 2023 models. Check under **Settings → My Fire TV → About**.
+**Owner's device (confirmed 17 Oct 2026): Fire TV Stick 4K Max (2nd Gen), Fire OS 8 — `AFTKRT`.** For reference, the 4K stick that was also on sale in July 2025 (UK Prime Day was 8–11 Jul 2025) is listed alongside it.
 
 | | Fire TV Stick 4K (2nd Gen, 2023) | Fire TV Stick 4K Max (2nd Gen, 2023) |
 |---|---|---|
@@ -301,7 +301,14 @@ Many legal providers offer these too, and they are simpler and often faster than
 
 ## 9. Remote control
 
-The **4K stick** ships with the Alexa Voice Remote; its exact layout (Guide button or not) is unverified. The **4K Max** ships with the Alexa Voice Remote Enhanced, which adds Guide, Channel ▲/▼ and Recents.
+**Owner's remote (photo, 17 Oct 2026): Alexa Voice Remote Enhanced (UK).** Its buttons, top to bottom:
+- Power and Alexa.
+- D-pad ring with Select.
+- Back, Home, Menu (☰).
+- ⏪ ⏯ ⏩.
+- Volume ±, a **Live/Guide (TV icon)** button, **Channel ▲/▼**.
+- Mute, Settings (⚙), Recents.
+- Prime Video, Netflix, Apps and Disney+ shortcut buttons.
 
 | Button | KeyEvent | Planned use |
 |---|---|---|
@@ -360,14 +367,21 @@ Guide, Recents, Settings and Mute are not in Amazon's keycode table. Log `onKeyD
 
 ---
 
-## 13. Open questions for the owner
+## 13. Owner's answers (17 Oct 2026)
 
-1. Settings → My Fire TV → About: the exact model name and Fire OS version.
-2. What did the provider give you?
-   - A portal URL + MAC (Stalker)?
-   - Do they also offer an M3U link or an Xtream login?
-3. In STB Emu's profile settings, are a custom serial number, device ID 1/2 or signature set? Which STB model is selected (MAG250 / 254 / 322)?
-4. Does the remote have **Guide** and **Channel ▲/▼** buttons?
+1. **Device:** Fire TV Stick 4K Max, Fire OS 8.
+2. **Provider:** a Stalker portal URL plus a MAC address. The provider's setup instructions:
+   1. Install STB Emu and create a profile.
+   2. Enter the portal URL.
+   3. Send the provider the MAC shown under *STB Configuration*. The provider then registers that MAC.
+
+   So Hinds TV must use **the same MAC** STB Emu generated (prefix `00:1A:79`).
+   - The portal URL is a bare `https://host/`, so endpoint discovery matters: `portal.php`, `server/load.php`
+     and `stalker_portal/server/load.php` are probed in turn.
+   - The provider didn't mention M3U or Xtream.
+3. **STB Emu identity settings:** not reported. The defaults are assumed (MAG250, no custom serial or device
+   IDs). They can be entered under Advanced settings if the portal rejects the device.
+4. **Remote:** the Enhanced remote, with Channel ▲/▼ and a Live/Guide button (see §9).
 
 ---
 

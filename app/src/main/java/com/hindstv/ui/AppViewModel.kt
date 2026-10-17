@@ -1,0 +1,505 @@
+package com.hindstv.ui
+
+import android.os.SystemClock
+import androidx.annotation.StringRes
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import com.hindstv.HindsApp
+import com.hindstv.R
+import com.hindstv.data.ChannelRepository
+import com.hindstv.data.db.ChannelRow
+import com.hindstv.data.stalker.Mac
+import com.hindstv.data.stalker.PortalProfile
+import com.hindstv.data.stalker.StalkerClient
+import com.hindstv.player.ZapController
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+
+enum class Screen { Setup, Tv }
+
+enum class Overlay { None, Banner, ChannelList }
+
+enum class PlayStatus { Idle, Tuning, Buffering, Playing, Stopped, Error }
+
+data class PlaybackUi(
+    val channel: ChannelRow? = null,
+    val status: PlayStatus = PlayStatus.Idle,
+    val error: String? = null,
+)
+
+data class GenreItem(val id: String, val title: String)
+
+/** Channels of one group, tagged with the group so the UI never mistakes a stale list for a new one. */
+data class GenreChannels(val genreId: String, val channels: List<ChannelRow>)
+
+data class SetupForm(
+    val portalUrl: String = "",
+    val mac: String = PortalProfile.DEFAULT_MAC_PREFIX,
+    val stbType: String = PortalProfile.DEFAULT_STB_TYPE,
+    val serialNumber: String = "",
+    val deviceId: String = "",
+    val deviceId2: String = "",
+    val signature: String = "",
+)
+
+data class SetupUi(
+    val form: SetupForm = SetupForm(),
+    val busy: Boolean = false,
+    val progress: String? = null,
+    val error: String? = null,
+    val canCancel: Boolean = false,
+)
+
+sealed interface SyncUi {
+    data object Idle : SyncUi
+    data object Running : SyncUi
+    data class Failed(val message: String) : SyncUi
+}
+
+/**
+ * Single source of UI state for the whole app (it is one screen with overlays, so one ViewModel
+ * keeps zapping, overlays and playback consistent). Runs on the main thread; portal and database
+ * calls switch threads internally.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+class AppViewModel(private val app: HindsApp) : ViewModel() {
+    private val container = app.container
+    private val store = container.profileStore
+    private val repo = container.channels
+    private val engine = container.player
+
+    val player: Player get() = engine.player
+
+    private val _screen = MutableStateFlow(if (store.profile == null) Screen.Setup else Screen.Tv)
+    val screen: StateFlow<Screen> = _screen.asStateFlow()
+
+    private val _setup = MutableStateFlow(SetupUi())
+    val setup: StateFlow<SetupUi> = _setup.asStateFlow()
+
+    // --- Browsing --------------------------------------------------------------------------------
+
+    val genres: StateFlow<List<GenreItem>> = repo.genres()
+        .map { list ->
+            listOf(
+                GenreItem(ChannelRepository.FAVORITES, app.getString(R.string.genre_favorites)),
+                GenreItem(ChannelRepository.ALL, app.getString(R.string.genre_all)),
+            ) + list.map { GenreItem(it.id, it.title) }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private val _selectedGenre = MutableStateFlow(store.lastGenreId ?: ChannelRepository.ALL)
+    val selectedGenre: StateFlow<String> = _selectedGenre.asStateFlow()
+
+    val channels: StateFlow<GenreChannels?> = _selectedGenre
+        .flatMapLatest { id -> repo.channels(id).map { GenreChannels(id, it) } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    private var genreFocusJob: Job? = null
+
+    // --- Playback --------------------------------------------------------------------------------
+
+    private val _playback = MutableStateFlow(PlaybackUi())
+    val playback: StateFlow<PlaybackUi> = _playback.asStateFlow()
+
+    private val _overlay = MutableStateFlow(Overlay.ChannelList)
+    val overlay: StateFlow<Overlay> = _overlay.asStateFlow()
+
+    private val _toast = MutableStateFlow<String?>(null)
+    val toast: StateFlow<String?> = _toast.asStateFlow()
+
+    private val _sync = MutableStateFlow<SyncUi>(SyncUi.Idle)
+    val sync: StateFlow<SyncUi> = _sync.asStateFlow()
+
+    /** Zapping happens within the group the channel was chosen from. */
+    private val zapGenre = MutableStateFlow(store.lastGenreId ?: ChannelRepository.ALL)
+    private val zapList: StateFlow<List<ChannelRow>> = zapGenre
+        .flatMapLatest { repo.channels(it) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private val zapper = ZapController<ChannelRow>(viewModelScope, SystemClock::uptimeMillis) { tune(it, isRetry = false) }
+    private var previousChannel: ChannelRow? = null
+    private var autoRetries = 0
+    private var resumeOnForeground = false
+    private var lastBackAt = 0L
+    private var bannerJob: Job? = null
+    private var toastJob: Job? = null
+    private var watchdogJob: Job? = null
+    private var retryJob: Job? = null
+
+    private val playerListener = object : Player.Listener {
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            if (_playback.value.channel == null) return
+            when (playbackState) {
+                Player.STATE_BUFFERING -> setStatus(PlayStatus.Buffering)
+                Player.STATE_READY -> {
+                    autoRetries = 0
+                    setStatus(PlayStatus.Playing)
+                }
+                else -> Unit
+            }
+        }
+
+        override fun onPlayerError(error: PlaybackException) {
+            if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
+                engine.player.seekToDefaultPosition()
+                engine.player.prepare()
+                return
+            }
+            val channel = _playback.value.channel ?: return
+            if (autoRetries < MAX_AUTO_RETRIES) {
+                // Stream links are short-lived; one retry with a fresh link fixes most failures.
+                autoRetries++
+                retryJob?.cancel()
+                retryJob = viewModelScope.launch {
+                    delay(1_000)
+                    if (_playback.value.channel?.id == channel.id) tune(channel, isRetry = true)
+                }
+            } else {
+                _playback.update { it.copy(status = PlayStatus.Error, error = Errors.describe(error)) }
+            }
+        }
+    }
+
+    init {
+        engine.player.addListener(playerListener)
+        store.profile?.let { profile ->
+            engine.setUserAgent(profile.userAgent)
+            viewModelScope.launch { startup() }
+        }
+    }
+
+    private suspend fun startup() {
+        if (!repo.hasChannels()) {
+            _overlay.value = Overlay.ChannelList
+            syncChannels()
+        }
+        val last = store.lastChannelId?.let { repo.channel(it) }
+        if (last != null) {
+            play(last, store.lastGenreId ?: ChannelRepository.ALL)
+        } else {
+            _overlay.value = Overlay.ChannelList
+        }
+        if (System.currentTimeMillis() - store.lastSyncAt > SYNC_MAX_AGE_MS) {
+            delay(5_000) // let the first channel start before loading the portal again
+            syncChannels()
+        }
+    }
+
+    // --- Lifecycle -------------------------------------------------------------------------------
+
+    fun onForeground() {
+        if (_screen.value != Screen.Tv) return
+        startWatchdog()
+        val channel = _playback.value.channel
+        if (resumeOnForeground && channel != null) {
+            resumeOnForeground = false
+            zapper.request(channel)
+        }
+    }
+
+    /** Amazon requires releasing decoders when not visible; it also frees the provider connection. */
+    fun onBackground() {
+        watchdogJob?.cancel()
+        retryJob?.cancel()
+        zapper.cancel() // also covers a tune still waiting on the portal
+        val playback = _playback.value
+        if (playback.channel != null && playback.status != PlayStatus.Stopped) resumeOnForeground = true
+        engine.stop()
+    }
+
+    // --- Remote ----------------------------------------------------------------------------------
+
+    /** True when video fills the screen and the remote controls channels rather than focus. */
+    val isFullscreen: Boolean
+        get() = _screen.value == Screen.Tv && _overlay.value != Overlay.ChannelList && _playback.value.channel != null
+
+    fun onRemote(action: RemoteAction) {
+        when (action) {
+            RemoteAction.ChannelUp -> zap(+1)
+            RemoteAction.ChannelDown -> zap(-1)
+            RemoteAction.OpenList -> showChannelList()
+            RemoteAction.ShowInfo -> showBanner()
+            RemoteAction.Recall -> previousChannel?.let { play(it, zapGenre.value) }
+            RemoteAction.ToggleFavorite -> _playback.value.channel?.let { toggleFavorite(it.id) }
+            RemoteAction.PlayPause -> togglePlayPause()
+            RemoteAction.Back -> Unit // handled by onBackInFullscreen
+        }
+    }
+
+    /** Returns true when the app should exit (Back pressed twice). */
+    fun onBackInFullscreen(): Boolean {
+        val now = SystemClock.uptimeMillis()
+        if (now - lastBackAt < EXIT_WINDOW_MS) return true
+        lastBackAt = now
+        showToast(R.string.press_back_to_exit)
+        return false
+    }
+
+    fun hideChannelList() {
+        if (_playback.value.channel != null) _overlay.value = Overlay.None
+    }
+
+    fun showChannelList() {
+        bannerJob?.cancel()
+        _selectedGenre.value = zapGenre.value
+        _overlay.value = Overlay.ChannelList
+    }
+
+    private fun showBanner() {
+        if (_playback.value.channel == null) return
+        _overlay.value = Overlay.Banner
+        bannerJob?.cancel()
+        bannerJob = viewModelScope.launch {
+            delay(BANNER_MS)
+            if (_overlay.value == Overlay.Banner) _overlay.value = Overlay.None
+        }
+    }
+
+    // --- Browsing actions ------------------------------------------------------------------------
+
+    /** Called as focus moves over groups; debounced so fast scrolling doesn't hit the database. */
+    fun selectGenre(genreId: String) {
+        genreFocusJob?.cancel()
+        _selectedGenre.value = genreId
+    }
+
+    fun onGenreFocused(genreId: String) {
+        genreFocusJob?.cancel()
+        genreFocusJob = viewModelScope.launch {
+            delay(GENRE_FOCUS_DEBOUNCE_MS)
+            _selectedGenre.value = genreId
+        }
+    }
+
+    fun play(channel: ChannelRow, fromGenre: String) {
+        zapGenre.value = fromGenre
+        store.lastGenreId = fromGenre
+        showChannel(channel)
+        zapper.request(channel)
+    }
+
+    fun toggleFavorite(channelId: String) {
+        viewModelScope.launch {
+            val nowFavorite = repo.toggleFavorite(channelId)
+            showToast(if (nowFavorite) R.string.added_to_favorites else R.string.removed_from_favorites)
+            _playback.update { p ->
+                if (p.channel?.id == channelId) p.copy(channel = p.channel.copy(isFavorite = nowFavorite)) else p
+            }
+        }
+    }
+
+    fun refreshChannels() {
+        viewModelScope.launch { syncChannels() }
+    }
+
+    private suspend fun syncChannels() {
+        if (_sync.value == SyncUi.Running) return
+        _sync.value = SyncUi.Running
+        _sync.value = try {
+            repo.sync()
+            SyncUi.Idle
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            SyncUi.Failed(Errors.describe(e))
+        }
+    }
+
+    private fun zap(delta: Int) {
+        val list = zapList.value
+        if (list.isEmpty()) return
+        val currentId = _playback.value.channel?.id
+        val index = list.indexOfFirst { it.id == currentId }
+        val next = if (index < 0) list.first() else list[(index + delta).mod(list.size)]
+        showChannel(next)
+        zapper.request(next)
+    }
+
+    private fun showChannel(channel: ChannelRow) {
+        retryJob?.cancel()
+        val current = _playback.value.channel
+        if (current != null && current.id != channel.id) previousChannel = current
+        _playback.value = PlaybackUi(channel = channel, status = PlayStatus.Tuning)
+        showBanner()
+    }
+
+    private suspend fun tune(channel: ChannelRow, isRetry: Boolean) {
+        if (!isRetry) autoRetries = 0
+        engine.stop() // close the previous stream first: providers allow one connection per account
+        try {
+            val url = repo.streamUrl(channel.id)
+            store.lastChannelId = channel.id
+            engine.play(url)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _playback.update { it.copy(status = PlayStatus.Error, error = Errors.describe(e)) }
+        }
+    }
+
+    private fun togglePlayPause() {
+        val playback = _playback.value
+        val channel = playback.channel ?: return
+        if (playback.status == PlayStatus.Stopped || playback.status == PlayStatus.Error) {
+            showChannel(channel)
+            zapper.request(channel)
+        } else {
+            // Live TV: "pause" releases the stream rather than holding the provider connection open.
+            retryJob?.cancel()
+            zapper.cancel()
+            engine.stop()
+            setStatus(PlayStatus.Stopped)
+            showBanner()
+        }
+    }
+
+    private fun setStatus(status: PlayStatus) {
+        _playback.update { it.copy(status = status, error = if (status == PlayStatus.Error) it.error else null) }
+    }
+
+    private fun showToast(@StringRes message: Int) {
+        _toast.value = app.getString(message)
+        toastJob?.cancel()
+        toastJob = viewModelScope.launch {
+            delay(TOAST_MS)
+            _toast.value = null
+        }
+    }
+
+    private fun startWatchdog() {
+        watchdogJob?.cancel()
+        if (store.profile == null) return
+        watchdogJob = viewModelScope.launch {
+            while (isActive) {
+                val client = runCatching { container.stalker() }.getOrNull() ?: return@launch
+                delay((client.session?.timeslotSeconds ?: DEFAULT_TIMESLOT_S) * 1_000L)
+                try {
+                    client.watchdog()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // Non-fatal: the next portal call re-authenticates if the session lapsed.
+                }
+            }
+        }
+    }
+
+    // --- Setup -----------------------------------------------------------------------------------
+
+    fun openSettings() {
+        val profile = store.profile
+        retryJob?.cancel()
+        zapper.cancel()
+        engine.stop()
+        if (_playback.value.channel != null) resumeOnForeground = true
+        watchdogJob?.cancel()
+        _setup.value = SetupUi(
+            form = profile?.let {
+                SetupForm(it.portalUrl, it.mac, it.stbType, it.serialNumber, it.deviceId, it.deviceId2, it.signature)
+            } ?: SetupForm(),
+            canCancel = profile != null,
+        )
+        _screen.value = Screen.Setup
+    }
+
+    fun cancelSetup() {
+        if (store.profile == null) return
+        _screen.value = Screen.Tv
+        onForeground()
+    }
+
+    fun updateForm(transform: (SetupForm) -> SetupForm) {
+        _setup.update { it.copy(form = transform(it.form), error = null) }
+    }
+
+    fun connect() {
+        val form = _setup.value.form
+        val mac = Mac.normalize(form.mac)
+        if (mac == null) {
+            _setup.update { it.copy(error = app.getString(R.string.error_invalid_mac)) }
+            return
+        }
+        val url = form.portalUrl.trim()
+        val validUrl = url.isNotEmpty() && runCatching { StalkerClient.candidateEndpoints(url) }.isSuccess
+        if (!validUrl) {
+            _setup.update { it.copy(error = app.getString(R.string.error_invalid_url)) }
+            return
+        }
+        val profile = PortalProfile(
+            portalUrl = url,
+            mac = mac,
+            stbType = form.stbType,
+            serialNumber = form.serialNumber.trim(),
+            deviceId = form.deviceId.trim(),
+            deviceId2 = form.deviceId2.trim(),
+            signature = form.signature.trim(),
+        )
+        _setup.update { it.copy(busy = true, error = null, progress = app.getString(R.string.connecting)) }
+        viewModelScope.launch {
+            try {
+                val client = container.newClient(profile)
+                client.connect()
+                _setup.update { it.copy(progress = "Connected. Loading channels…") }
+                val profileChanged = store.profile != profile
+                store.profile = profile
+                store.endpoint = client.session?.endpoint
+                container.useClient(client)
+                engine.setUserAgent(profile.userAgent)
+                val count = repo.sync()
+                if (profileChanged) {
+                    store.lastChannelId = null
+                    zapGenre.value = ChannelRepository.ALL
+                    resumeOnForeground = false
+                    _playback.value = PlaybackUi()
+                }
+                _setup.value = SetupUi()
+                _selectedGenre.value = ChannelRepository.ALL
+                _overlay.value = Overlay.ChannelList
+                _screen.value = Screen.Tv
+                if (count > 0) onForeground()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _setup.update { it.copy(busy = false, progress = null, error = Errors.describe(e)) }
+            }
+        }
+    }
+
+    override fun onCleared() {
+        engine.player.removeListener(playerListener)
+    }
+
+    companion object {
+        private const val MAX_AUTO_RETRIES = 1
+        private const val BANNER_MS = 4_000L
+        private const val TOAST_MS = 2_500L
+        private const val EXIT_WINDOW_MS = 2_500L
+        private const val GENRE_FOCUS_DEBOUNCE_MS = 150L
+        private const val DEFAULT_TIMESLOT_S = 90
+        private const val SYNC_MAX_AGE_MS = 12 * 60 * 60 * 1_000L
+
+        val Factory: ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as HindsApp
+                AppViewModel(app)
+            }
+        }
+    }
+}
