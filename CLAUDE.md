@@ -138,6 +138,10 @@ Then use portal `http://10.0.2.2:8080/c/` on the emulator, with any MAC starting
 
 ## Conventions
 
+- **Commit authorship:** every commit is authored and committed as **Fred Oyetayo**
+  (`29312441+fredoyetayo@users.noreply.github.com`). Never add `Co-Authored-By: Claude…`,
+  `Claude-Session:` or other AI attribution lines to commits, PRs, tags or release notes.
+
 - **Kotlin style:** official, 4 spaces, ~120 columns. Comments explain *why*; there aren't many.
 - **Threading:**
   - The ViewModel runs on Main.
