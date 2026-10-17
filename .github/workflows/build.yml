@@ -1,0 +1,75 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write # publish GitHub Releases from main
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Every build gets a higher versionCode, so each APK installs over the previous one.
+      VERSION_CODE: ${{ github.run_number }}
+      VERSION_NAME: 0.1.${{ github.run_number }}
+      HAS_SIGNING_SECRET: ${{ secrets.HINDS_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      # Optional: sign with a private key from repository secrets instead of keystore/hinds-dev.jks.
+      - name: Use signing key from secrets
+        if: env.HAS_SIGNING_SECRET == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.HINDS_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.HINDS_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.HINDS_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.HINDS_KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          {
+            echo "HINDS_KEYSTORE_FILE=$RUNNER_TEMP/release.jks"
+            echo "HINDS_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "HINDS_KEY_ALIAS=$KEY_ALIAS"
+            echo "HINDS_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Test, lint and build release APK
+        run: ./gradlew testDebugUnitTest lintDebug assembleRelease --console=plain
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/release/app-release.apk hinds-tv.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hinds-tv-${{ env.VERSION_NAME }}
+          path: hinds-tv.apk
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: reports
+          path: app/build/reports/
+
+      - name: Publish GitHub release (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v$VERSION_NAME" hinds-tv.apk \
+            --title "Hinds TV $VERSION_NAME" \
+            --notes "Built from ${GITHUB_SHA::7}. Install: see README (Downloader or adb)." \
+            --latest
