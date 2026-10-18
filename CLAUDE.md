@@ -209,7 +209,10 @@ serves `get_epg_info` too.
 - [ ] **Phase 5 — VOD, series, catch-up.**
   - Ministra VOD and all three series models.
   - `tv_archive`.
-  - Resume positions. VOD needs real stream lengths, so it must not use `LiveDataSource`.
+  - Netflix-style resume: save the position every few seconds and on stop/`onStop` (Room, per video), resume
+    from it next time (with "Play from start" offered), mark finished past ~95%, and show a "Continue
+    watching" row. VOD needs real stream lengths, so it must not use `LiveDataSource`.
+  - Radio (Stalker `radio` module): audio-only playback, screen-off option.
 - [ ] **Phase 6 — Self-update** from GitHub Releases (`REQUEST_INSTALL_PACKAGES` + PackageInstaller).
 
 **Known gaps and TODOs:**
