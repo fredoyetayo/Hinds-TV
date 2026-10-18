@@ -9,6 +9,7 @@ import com.hindstv.data.source.VideoCategory
 import com.hindstv.data.source.VideoEpisode
 import com.hindstv.data.source.VideoItem
 import com.hindstv.data.source.VideoPage
+import com.hindstv.data.source.VideoSort
 import com.hindstv.data.source.numberedEpisodes
 import com.hindstv.player.ResumePolicy
 import kotlinx.coroutines.flow.Flow
@@ -30,10 +31,12 @@ class MediaRepository(
         }
     }
 
-    suspend fun videoPage(categoryId: String, page: Int): VideoPage {
+    suspend fun videoPage(categoryId: String, page: Int, sort: VideoSort = VideoSort.Newest, search: String = ""): VideoPage {
         val active = source()
-        if (active.hasOnlineVideos) return active.videoPage(categoryId, page)
-        val rows = dao.videos(categoryId, limit = PAGE_SIZE + 1, offset = (page - 1) * PAGE_SIZE)
+        if (active.hasOnlineVideos) return active.videoPage(categoryId, page, sort, search)
+        val rows = dao.videos(
+            categoryId, search.trim(), byName = sort == VideoSort.AtoZ, limit = PAGE_SIZE + 1, offset = (page - 1) * PAGE_SIZE,
+        )
         return VideoPage(
             items = rows.take(PAGE_SIZE).map { VideoItem(id = it.id, categoryId = it.categoryId, title = it.title, poster = it.poster, cmd = it.cmd) },
             hasMore = rows.size > PAGE_SIZE,
@@ -61,9 +64,9 @@ class MediaRepository(
 
     fun radio(): Flow<List<RadioEntity>> = dao.radio()
 
-    suspend fun radioUrl(stationId: String): String {
+    suspend fun radioUrls(stationId: String): List<String> {
         val cmd = dao.radioCmd(stationId) ?: throw PlaylistException("That station no longer exists.")
-        return source().radioUrl(cmd)
+        return source().radioUrls(cmd)
     }
 
     // --- Resume positions ------------------------------------------------------------------------

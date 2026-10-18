@@ -9,8 +9,12 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import com.hindstv.HindsApp
+import com.hindstv.R
+import com.hindstv.data.stalker.StalkerException
 import com.hindstv.data.db.WatchProgressEntity
+import com.hindstv.data.source.ALL_VIDEOS
 import com.hindstv.data.source.VideoCategory
+import com.hindstv.data.source.VideoSort
 import com.hindstv.data.source.VideoEpisode
 import com.hindstv.data.source.VideoItem
 import com.hindstv.data.toEpisode
@@ -35,9 +39,12 @@ sealed interface VideoPageUi {
     data object Player : VideoPageUi
 }
 
-/** One category row in the library; filled page by page as the user scrolls along it. */
-data class VideoRow(
-    val category: VideoCategory,
+/** What the VOD grid shows: one category (or all), in an order, optionally filtered by title. */
+data class GridQuery(val categoryId: String, val sort: VideoSort = VideoSort.Newest, val search: String = "")
+
+/** The grid's contents, filled page by page as focus nears the bottom. */
+data class VideoGrid(
+    val query: GridQuery,
     val items: List<VideoItem> = emptyList(),
     val loading: Boolean = false,
     val hasMore: Boolean = true,
@@ -75,7 +82,7 @@ data class VodPosition(val positionMs: Long = 0, val durationMs: Long = 0)
  * through the app's single player; live TV is released before a video starts (one connection per
  * account) and resumes when the user goes back to Live.
  */
-class VideoViewModel(app: HindsApp) : ViewModel() {
+class VideoViewModel(private val app: HindsApp) : ViewModel() {
     private val media = app.container.media
     private val engine = app.container.player
 
@@ -87,8 +94,16 @@ class VideoViewModel(app: HindsApp) : ViewModel() {
     private val _library = MutableStateFlow<LibraryUi>(LibraryUi.Loading)
     val library: StateFlow<LibraryUi> = _library.asStateFlow()
 
-    private val _rows = MutableStateFlow<Map<String, VideoRow>>(emptyMap())
-    val rows: StateFlow<Map<String, VideoRow>> = _rows.asStateFlow()
+    private val _gridQuery = MutableStateFlow<GridQuery?>(null)
+    val gridQuery: StateFlow<GridQuery?> = _gridQuery.asStateFlow()
+
+    private val _grid = MutableStateFlow<VideoGrid?>(null)
+    val grid: StateFlow<VideoGrid?> = _grid.asStateFlow()
+
+    /** Recently shown grids, so going back to a category is instant. */
+    private val gridCache = LinkedHashMap<GridQuery, VideoGrid>()
+    private var gridJob: Job? = null
+    private var searchJob: Job? = null
 
     val continueWatching: StateFlow<List<WatchProgressEntity>> = media.continueWatching()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -147,13 +162,21 @@ class VideoViewModel(app: HindsApp) : ViewModel() {
 
     // --- Library ---------------------------------------------------------------------------------
 
-    /** Called when Videos opens: loads categories once (again after a failure). */
+    /** Called when VOD opens: loads categories once (again after a failure). */
     fun onOpen() {
         if (_library.value is LibraryUi.Ready || libraryJob?.isActive == true) return
         _library.value = LibraryUi.Loading
         libraryJob = viewModelScope.launch {
             _library.value = try {
-                LibraryUi.Ready(media.videoCategories())
+                val categories = media.videoCategories()
+                if (_gridQuery.value == null) {
+                    val start = when {
+                        continueWatching.value.isNotEmpty() -> CONTINUE
+                        else -> categories.firstOrNull()?.id ?: ALL_VIDEOS
+                    }
+                    selectCategory(start)
+                }
+                LibraryUi.Ready(listOf(VideoCategory(ALL_VIDEOS, app.getString(com.hindstv.R.string.all_vod))) + categories)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -162,27 +185,73 @@ class VideoViewModel(app: HindsApp) : ViewModel() {
         }
     }
 
-    /** Loads the next page of a row when it comes into view or focus nears its end. */
-    fun loadMore(category: VideoCategory) {
-        val row = _rows.value[category.id] ?: VideoRow(category)
-        if (row.loading || !row.hasMore || row.error != null) return
-        _rows.update { it + (category.id to row.copy(loading = true)) }
-        viewModelScope.launch {
+    /** Shows a category in the grid (keeps the current order; clears the title filter). */
+    fun selectCategory(categoryId: String) {
+        val current = _gridQuery.value
+        if (current?.categoryId == categoryId && current.search.isEmpty()) return
+        show(GridQuery(categoryId, current?.sort ?: VideoSort.Newest))
+    }
+
+    fun setSort(sort: VideoSort) {
+        val current = _gridQuery.value ?: return
+        if (current.sort != sort) show(current.copy(sort = sort))
+    }
+
+    /** Filters the current category by title as the user types (debounced). */
+    fun setSearch(text: String) {
+        val current = _gridQuery.value ?: return
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            delay(SEARCH_DEBOUNCE_MS)
+            if (current.search != text.trim()) show(current.copy(search = text.trim()))
+        }
+    }
+
+    private fun show(query: GridQuery) {
+        gridJob?.cancel()
+        _gridQuery.value = query
+        if (query.categoryId == CONTINUE) {
+            _grid.value = null
+            return
+        }
+        val cached = gridCache[query]
+        _grid.value = cached ?: VideoGrid(query)
+        if (cached == null) loadMore()
+    }
+
+    /** Loads the next page of the grid when it opens or focus nears its end. */
+    fun loadMore() {
+        val grid = _grid.value ?: return
+        if (grid.loading || !grid.hasMore || grid.error != null) return
+        _grid.value = grid.copy(loading = true)
+        gridJob = viewModelScope.launch {
+            val q = grid.query
             val updated = try {
-                val result = media.videoPage(category.id, row.nextPage)
-                row.copy(
-                    items = (row.items + result.items).distinctBy { it.id },
+                val result = media.videoPage(q.categoryId, grid.nextPage, q.sort, q.search)
+                grid.copy(
+                    items = (grid.items + result.items).distinctBy { it.id },
                     loading = false,
                     hasMore = result.hasMore && result.items.isNotEmpty(),
-                    nextPage = row.nextPage + 1,
+                    nextPage = grid.nextPage + 1,
                 )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                row.copy(loading = false, error = Errors.describe(e))
+                grid.copy(loading = false, error = Errors.describe(e))
             }
-            _rows.update { it + (category.id to updated) }
+            if (_gridQuery.value == q) _grid.value = updated
+            if (q.search.isEmpty() && updated.error == null) {
+                gridCache[q] = updated
+                if (gridCache.size > GRID_CACHE) gridCache.remove(gridCache.keys.first())
+            }
         }
+    }
+
+    /** Try again after a failed page. */
+    fun retryGrid() {
+        val grid = _grid.value ?: return
+        _grid.value = grid.copy(error = null)
+        loadMore()
     }
 
     /** After a provider change everything is reloaded. */
@@ -190,7 +259,9 @@ class VideoViewModel(app: HindsApp) : ViewModel() {
         stopPlayback(save = false)
         libraryJob?.cancel()
         _library.value = LibraryUi.Loading
-        _rows.value = emptyMap()
+        gridCache.clear()
+        _gridQuery.value = null
+        _grid.value = null
         _page.value = VideoPageUi.Library
     }
 
@@ -248,10 +319,23 @@ class VideoViewModel(app: HindsApp) : ViewModel() {
                 val url = media.videoUrl(item, episode)
                 engine.play(url, owner = this@VideoViewModel, vod = true, startMs = startMs)
                 startSaving()
+                // A stream that connects but never delivers a picture would load for ever.
+                delay(START_TIMEOUT_MS)
+                if (_vod.value?.status == PlayStatus.Tuning || (_vod.value?.status == PlayStatus.Buffering && engine.player.currentPosition <= startMs)) {
+                    if (engine.owner === this@VideoViewModel) engine.stop()
+                    _vod.update { it?.copy(status = PlayStatus.Error, error = app.getString(R.string.vod_no_picture), controlsVisible = true) }
+                }
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: StalkerException.StreamUnavailable) {
+                val message = if (e.reason.contains("nothing_to_play", ignoreCase = true)) {
+                    app.getString(R.string.vod_nothing_to_play)
+                } else {
+                    Errors.describe(e)
+                }
+                _vod.update { it?.copy(status = PlayStatus.Error, error = message, controlsVisible = true) }
             } catch (e: Exception) {
-                _vod.update { it?.copy(status = PlayStatus.Error, error = Errors.describe(e)) }
+                _vod.update { it?.copy(status = PlayStatus.Error, error = Errors.describe(e), controlsVisible = true) }
             }
         }
     }
@@ -423,6 +507,11 @@ class VideoViewModel(app: HindsApp) : ViewModel() {
     }
 
     companion object {
+        /** Rail entry for "Continue watching" (not a provider category). */
+        const val CONTINUE = "__continue"
+        private const val SEARCH_DEBOUNCE_MS = 350L
+        private const val GRID_CACHE = 8
+        private const val START_TIMEOUT_MS = 30_000L
         private const val SHORT_SKIP_MS = 10_000L
         private const val LONG_SKIP_MS = 30_000L
         private const val CONTROLS_MS = 4_000L

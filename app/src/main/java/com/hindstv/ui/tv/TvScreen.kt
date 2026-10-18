@@ -62,7 +62,6 @@ fun TvScreen(vm: AppViewModel, onNavigate: (NavSection) -> Unit) {
     }
 
     // Back in full screen is handled by MainActivity (press twice to exit).
-    BackHandler(enabled = overlay == Overlay.ChannelList && playback.channel != null) { vm.hideChannelList() }
     BackHandler(enabled = overlay == Overlay.Guide) { vm.closeGuide() }
 }
 

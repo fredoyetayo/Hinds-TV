@@ -65,6 +65,12 @@ data class VideoItem(
 fun VideoItem.numberedEpisodes(): List<VideoEpisode> =
     episodeNumbers.map { n -> VideoEpisode(key = "e$n", title = "Episode $n", season = null, number = n, cmd = cmd, series = n) }
 
+/** VOD order: newest additions first, or A–Z. */
+enum class VideoSort { Newest, AtoZ }
+
+/** The category id meaning "every category". */
+const val ALL_VIDEOS = "*"
+
 data class VideoPage(val items: List<VideoItem>, val hasMore: Boolean)
 
 /** One playable episode. [key] is stable within its series and used for resume positions. */
@@ -122,7 +128,8 @@ interface ChannelSource {
     suspend fun videoCategories(): List<VideoCategory> = emptyList()
 
     /** [page] starts at 1. */
-    suspend fun videoPage(categoryId: String, page: Int): VideoPage = VideoPage(emptyList(), hasMore = false)
+    suspend fun videoPage(categoryId: String, page: Int, sort: VideoSort, search: String): VideoPage =
+        VideoPage(emptyList(), hasMore = false)
 
     suspend fun videoEpisodes(item: VideoItem): List<VideoEpisode> = emptyList()
 
@@ -132,7 +139,8 @@ interface ChannelSource {
     /** A playable URL for a video or one of its episodes. */
     suspend fun videoUrl(cmd: String, series: Int?): String = cmd
 
-    suspend fun radioUrl(cmd: String): String = cmd
+    /** Addresses to try for a station, best first. */
+    suspend fun radioUrls(cmd: String): List<String> = listOf(cmd)
 }
 
 class PlaylistException(message: String) : IOException(message)

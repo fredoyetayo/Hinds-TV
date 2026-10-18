@@ -9,9 +9,11 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import com.hindstv.HindsApp
+import com.hindstv.R
 import com.hindstv.data.db.RadioEntity
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -29,7 +31,7 @@ data class RadioUi(
 )
 
 /** Radio: one station at a time through the app's single player, audio only. */
-class RadioViewModel(app: HindsApp) : ViewModel() {
+class RadioViewModel(private val app: HindsApp) : ViewModel() {
     private val media = app.container.media
     private val engine = app.container.player
 
@@ -44,13 +46,20 @@ class RadioViewModel(app: HindsApp) : ViewModel() {
     val screenOff: StateFlow<Boolean> = _screenOff.asStateFlow()
 
     private var playJob: Job? = null
+    /** Addresses still to try for the current station, if the current one doesn't start. */
+    private var fallbacks: List<String> = emptyList()
+    private var startWatch: Job? = null
 
     private val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (engine.owner !== this@RadioViewModel || _playing.value == null) return
             when (playbackState) {
                 Player.STATE_BUFFERING -> setStatus(PlayStatus.Buffering)
-                Player.STATE_READY -> setStatus(PlayStatus.Playing)
+                Player.STATE_READY -> {
+                    startWatch?.cancel()
+                    fallbacks = emptyList()
+                    setStatus(PlayStatus.Playing)
+                }
                 else -> Unit
             }
         }
@@ -66,7 +75,9 @@ class RadioViewModel(app: HindsApp) : ViewModel() {
 
         override fun onPlayerError(error: PlaybackException) {
             if (engine.owner !== this@RadioViewModel) return
-            _playing.update { it?.copy(status = PlayStatus.Error, error = Errors.describe(error)) }
+            if (!tryNext()) {
+                _playing.update { it?.copy(status = PlayStatus.Error, error = Errors.describe(error)) }
+            }
         }
     }
 
@@ -79,14 +90,40 @@ class RadioViewModel(app: HindsApp) : ViewModel() {
         _playing.value = RadioUi(station)
         playJob = viewModelScope.launch {
             try {
-                val url = media.radioUrl(station.id)
-                engine.play(url, owner = this@RadioViewModel)
+                val urls = media.radioUrls(station.id)
+                fallbacks = urls.drop(1)
+                start(urls.first())
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 _playing.update { it?.copy(status = PlayStatus.Error, error = Errors.describe(e)) }
             }
         }
+    }
+
+    /**
+     * Plays [url] and gives it [START_TIMEOUT_MS] to produce sound; a stream that connects but
+     * never sends audio would otherwise sit on "Tuning…" for ever.
+     */
+    private fun start(url: String) {
+        engine.play(url, owner = this)
+        startWatch?.cancel()
+        startWatch = viewModelScope.launch {
+            delay(START_TIMEOUT_MS)
+            if (_playing.value?.status == PlayStatus.Playing) return@launch
+            if (!tryNext()) {
+                if (engine.owner === this@RadioViewModel) engine.stop()
+                _playing.update { it?.copy(status = PlayStatus.Error, error = app.getString(R.string.radio_no_audio)) }
+            }
+        }
+    }
+
+    /** Moves on to the next address for the station; false when there is none left. */
+    private fun tryNext(): Boolean {
+        val next = fallbacks.firstOrNull() ?: return false
+        fallbacks = fallbacks.drop(1)
+        start(next)
+        return true
     }
 
     /** Stop button: the station stays on screen so Play starts it again. */
@@ -96,6 +133,7 @@ class RadioViewModel(app: HindsApp) : ViewModel() {
             play(current.station)
         } else {
             playJob?.cancel()
+            startWatch?.cancel()
             if (engine.owner === this) engine.stop()
             _playing.update { it?.copy(status = PlayStatus.Stopped, nowPlaying = null) }
         }
@@ -108,6 +146,8 @@ class RadioViewModel(app: HindsApp) : ViewModel() {
     /** Leaving Radio (or the app): the provider connection goes back to live TV. */
     fun stop() {
         playJob?.cancel()
+        startWatch?.cancel()
+        fallbacks = emptyList()
         if (engine.owner === this) engine.stop()
         _playing.value = null
         _screenOff.value = false
@@ -122,6 +162,8 @@ class RadioViewModel(app: HindsApp) : ViewModel() {
     }
 
     companion object {
+        private const val START_TIMEOUT_MS = 15_000L
+
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 RadioViewModel(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as HindsApp)

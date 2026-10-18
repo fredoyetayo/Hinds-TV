@@ -114,11 +114,16 @@ tools/fake-portal/             fake Stalker portal + test streams for developmen
   alongside. Picking a channel watches it full screen.
 - **Guide.** One focusable Canvas for the current group: ▲▼ channel, ◀▶ programme, CH± page, Select plays,
   Back or Guide closes. `MainActivity` passes every key through while the guide is open.
-- **Videos.** Rows per category (portal pages load as rows come into view and as focus nears a row's end);
-  "Continue watching" on top resumes straight into the video. Details: Resume / Play from start, episodes.
+- **Section bar.** `NavBarState` + `NavBackHandler`: Back from anywhere in a section's lists jumps to the
+  bar first, then leaves. Keep the bar outside lazy lists so it is always composed.
+- **VOD** (was "Videos"). Category rail (Continue watching, All VOD, provider categories; focus previews
+  after 250 ms) + 3-column poster grid with paging, title filter (portal `search=`) and Newest/A–Z
+  (`sortby=added|name`). "Continue watching" resumes straight into the video. Details: Resume / Play from start, episodes.
   Player: `MainActivity` sends keys to `VideoViewModel.onPlayerKey` (◀▶ ±10 s, ⏪⏩ ±30 s, accumulating;
   Select/⏯ pause). Position saved every 10 s, on pause, Back and `onStop`. Series run on to the next episode.
-- **Radio.** Station grid; Stop; Screen off (black overlay, any key wakes). Back returns to Live.
+- **Radio.** Station grid; Stop; Screen off (black overlay, any key wakes). Back returns to Live. Plays the
+  portal's `create_link` first, then the raw `cmd` URL; 15 s without audio moves on / shows an error.
+- **Guide.** ⏪ ⏩ step through groups (favourites lists first), remembered in `guideGroupId`; ⏯ back to now.
 - **Speed.** The portal token is kept between launches (no handshake before the first channel; an expired
   one is renewed once). Playback starts after 500 ms of media. `baseline-prof.txt` pre-compiles app code.
   The info banner shows "Tuned in x.x s" (logcat `HindsPerf` also logs start-to-first-frame).

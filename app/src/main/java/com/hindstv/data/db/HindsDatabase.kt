@@ -278,8 +278,13 @@ abstract class MediaDao {
     @Query("SELECT * FROM video_categories ORDER BY sortOrder")
     abstract suspend fun videoCategories(): List<VideoCategoryEntity>
 
-    @Query("SELECT * FROM videos WHERE categoryId = :categoryId ORDER BY sortOrder LIMIT :limit OFFSET :offset")
-    abstract suspend fun videos(categoryId: String, limit: Int, offset: Int): List<VideoEntity>
+    /** A page of one category ("*" for all), optionally filtered by title, in playlist or A–Z order. */
+    @Query(
+        "SELECT * FROM videos WHERE (:categoryId = '*' OR categoryId = :categoryId) " +
+            "AND title LIKE '%' || :search || '%' " +
+            "ORDER BY CASE WHEN :byName THEN title ELSE '' END COLLATE NOCASE, sortOrder LIMIT :limit OFFSET :offset",
+    )
+    abstract suspend fun videos(categoryId: String, search: String, byName: Boolean, limit: Int, offset: Int): List<VideoEntity>
 
     @Query("SELECT * FROM radio ORDER BY sortOrder")
     abstract fun radio(): Flow<List<RadioEntity>>

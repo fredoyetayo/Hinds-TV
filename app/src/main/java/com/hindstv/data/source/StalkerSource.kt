@@ -43,8 +43,8 @@ class StalkerSource(val client: StalkerClient) : ChannelSource {
     override suspend fun videoCategories(): List<VideoCategory> =
         client.videoCategories().map { VideoCategory(it.id, it.title, it.censored) }
 
-    override suspend fun videoPage(categoryId: String, page: Int): VideoPage {
-        val result = client.videoPage(categoryId, page)
+    override suspend fun videoPage(categoryId: String, page: Int, sort: VideoSort, search: String): VideoPage {
+        val result = client.videoPage(categoryId, page, byName = sort == VideoSort.AtoZ, search = search)
         return VideoPage(
             items = result.items.map {
                 VideoItem(
@@ -72,7 +72,7 @@ class StalkerSource(val client: StalkerClient) : ChannelSource {
 
     override suspend fun videoUrl(cmd: String, series: Int?): String = client.videoUrl(cmd, series)
 
-    override suspend fun radioUrl(cmd: String): String = client.radioUrl(cmd)
+    override suspend fun radioUrls(cmd: String): List<String> = client.radioUrls(cmd)
 
     override suspend fun loadEpg(
         channels: List<EpgChannelRef>,

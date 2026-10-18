@@ -84,8 +84,13 @@ fun GuideOverlay(vm: AppViewModel) {
     val measurer = rememberTextMeasurer(cacheSize = 96)
     val noGuideText = stringResource(R.string.no_guide)
 
+    // A different group starts again at its top (or on the playing channel if it is in it).
+    LaunchedEffect(selectedGenre) {
+        focusedRow = -1
+        firstRow = 0
+    }
     // Start on the playing channel once the group's channels are known.
-    LaunchedEffect(channels.isNotEmpty()) {
+    LaunchedEffect(selectedGenre, channels.isNotEmpty()) {
         if (focusedRow < 0 && channels.isNotEmpty()) {
             focusedRow = channels.indexOfFirst { it.id == playback.channel?.id }.coerceAtLeast(0)
             firstRow = max(0, focusedRow - 2)
@@ -150,6 +155,13 @@ fun GuideOverlay(vm: AppViewModel) {
                             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER ->
                                 focusedChannel?.let { vm.play(it, selectedGenre) }
                             KeyEvent.KEYCODE_MENU -> focusedChannel?.let { vm.toggleFavorite(it.id) }
+                            // ⏪ ⏩ step through the groups (favourites lists first), ⏯ back to now.
+                            KeyEvent.KEYCODE_MEDIA_REWIND -> vm.stepGuideGroup(-1)
+                            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> vm.stepGuideGroup(+1)
+                            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                                focusTime = minute
+                                windowStart = minute - minute % SLOT_S
+                            }
                             KeyEvent.KEYCODE_GUIDE, KeyEvent.KEYCODE_TV -> vm.closeGuide()
                             else -> return@onKeyEvent false
                         }
@@ -191,7 +203,7 @@ private fun GuideHeader(
     Row(modifier.fillMaxWidth().padding(top = 28.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                "${stringResource(R.string.action_guide)}  ·  $groupTitle",
+                "${stringResource(R.string.action_guide)}  ·  ⏪  $groupTitle  ⏩",
                 style = MaterialTheme.typography.labelLarge,
                 color = HindsColors.Accent,
             )

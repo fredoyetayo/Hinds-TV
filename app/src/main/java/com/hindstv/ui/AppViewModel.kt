@@ -262,6 +262,16 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     init {
         engine.player.addListener(playerListener)
+        // A remembered group that no longer exists (deleted list, provider changed its groups)
+        // would show an empty list; fall back to All channels instead.
+        viewModelScope.launch {
+            genres.collect { list ->
+                if (list.isEmpty()) return@collect
+                val ids = list.mapTo(HashSet()) { it.id }
+                if (_selectedGenre.value !in ids) _selectedGenre.value = ChannelRepository.ALL
+                if (zapGenre.value !in ids) zapGenre.value = ChannelRepository.ALL
+            }
+        }
         if (store.profile != null) {
             engine.setUserAgent(container.source().userAgent)
             viewModelScope.launch { startup() }
@@ -347,10 +357,22 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         if (_playback.value.channel != null) _overlay.value = Overlay.None
     }
 
+    /** Opens the guide on the group last viewed in it (e.g. a favourites list), else the watched group. */
     fun openGuide() {
         bannerJob?.cancel()
-        _selectedGenre.value = zapGenre.value
+        val remembered = store.guideGroupId?.takeIf { id -> genres.value.any { it.id == id } }
+        _selectedGenre.value = remembered ?: zapGenre.value
         _overlay.value = Overlay.Guide
+    }
+
+    /** ⏪ ⏩ in the guide: previous / next group, wrapping round; remembered for next time. */
+    fun stepGuideGroup(delta: Int) {
+        val list = genres.value
+        if (list.isEmpty()) return
+        val index = list.indexOfFirst { it.id == _selectedGenre.value }
+        val next = list[((if (index < 0) 0 else index) + delta).mod(list.size)]
+        _selectedGenre.value = next.id
+        store.guideGroupId = next.id
     }
 
     /** Back from the guide: to the video if something is playing, otherwise to the channel list. */

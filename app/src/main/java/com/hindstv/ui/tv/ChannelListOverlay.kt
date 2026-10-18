@@ -55,7 +55,9 @@ import com.hindstv.ui.SyncUi
 import com.hindstv.ui.components.ChannelLogo
 import com.hindstv.ui.components.Clock
 import com.hindstv.ui.components.NavSection
+import com.hindstv.ui.components.NavBackHandler
 import com.hindstv.ui.components.TopNav
+import com.hindstv.ui.components.rememberNavBarState
 import com.hindstv.ui.components.ProgressLine
 import com.hindstv.ui.components.progress
 import com.hindstv.ui.theme.HindsColors
@@ -67,6 +69,7 @@ import com.hindstv.ui.theme.HindsStyle
  */
 @Composable
 fun ChannelListOverlay(vm: AppViewModel, onNavigate: (NavSection) -> Unit) {
+    val navBar = rememberNavBarState()
     val genres by vm.genres.collectAsStateWithLifecycle()
     val selectedGenre by vm.selectedGenre.collectAsStateWithLifecycle()
     val genreChannels by vm.channels.collectAsStateWithLifecycle()
@@ -78,7 +81,7 @@ fun ChannelListOverlay(vm: AppViewModel, onNavigate: (NavSection) -> Unit) {
     Box(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxHeight()) {
             Column(Modifier.fillMaxHeight().background(HindsColors.Panel)) {
-                TopNav(NavSection.Live, onNavigate, Modifier.padding(start = 28.dp, top = 24.dp, bottom = 4.dp))
+                TopNav(NavSection.Live, onNavigate, Modifier.padding(start = 28.dp, top = 24.dp, bottom = 4.dp), state = navBar)
                 Row(Modifier.weight(1f)) {
                 GenreColumn(
                     genres = genres,
@@ -112,6 +115,8 @@ fun ChannelListOverlay(vm: AppViewModel, onNavigate: (NavSection) -> Unit) {
         }
         Clock(minute, Modifier.align(Alignment.TopEnd).padding(top = 32.dp, end = 48.dp))
     }
+    // Back: first up to the section bar (however far down the list), then back to the picture.
+    NavBackHandler(navBar, onExit = if (playback.channel != null) vm::hideChannelList else null)
 }
 
 @Composable

@@ -1,6 +1,5 @@
 package com.hindstv.ui.radio
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -49,7 +48,9 @@ import com.hindstv.ui.components.KeepScreenOn
 import com.hindstv.ui.components.LevelBars
 import com.hindstv.ui.components.NavSection
 import com.hindstv.ui.components.PillButton
+import com.hindstv.ui.components.NavBackHandler
 import com.hindstv.ui.components.TopNav
+import com.hindstv.ui.components.rememberNavBarState
 import com.hindstv.ui.components.focusRing
 import com.hindstv.ui.components.requestFocusSoon
 import com.hindstv.ui.theme.HindsColors
@@ -62,7 +63,7 @@ fun RadioScreen(vm: RadioViewModel, onNavigate: (NavSection) -> Unit, onExit: ()
     val playing by vm.playing.collectAsStateWithLifecycle()
     val screenOff by vm.screenOff.collectAsStateWithLifecycle()
     val firstFocus = remember { FocusRequester() }
-    val navFocus = remember { FocusRequester() }
+    val navBar = rememberNavBarState()
 
     // The screensaver would stop the app (and the music); "Screen off" below is the way to dim.
     if (playing != null) KeepScreenOn()
@@ -70,7 +71,7 @@ fun RadioScreen(vm: RadioViewModel, onNavigate: (NavSection) -> Unit, onExit: ()
     Column(Modifier.fillMaxSize().background(HindsColors.Background).padding(top = 28.dp)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 48.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.radio_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-            TopNav(NavSection.Radio, onNavigate, currentFocus = navFocus)
+            TopNav(NavSection.Radio, onNavigate, state = navBar)
         }
         NowPlaying(vm, playing, Modifier.padding(horizontal = 48.dp, vertical = 20.dp))
         Text(
@@ -88,7 +89,7 @@ fun RadioScreen(vm: RadioViewModel, onNavigate: (NavSection) -> Unit, onExit: ()
                 modifier = Modifier.padding(horizontal = 48.dp),
             )
             else -> LazyVerticalGrid(
-                columns = GridCells.Fixed(6),
+                columns = GridCells.Fixed(7),
                 contentPadding = PaddingValues(start = 48.dp, end = 48.dp, bottom = 32.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -117,8 +118,8 @@ fun RadioScreen(vm: RadioViewModel, onNavigate: (NavSection) -> Unit, onExit: ()
         }
     }
 
-    BackHandler { onExit() }
-    LaunchedEffect(Unit) { navFocus.requestFocusSoon() }
+    NavBackHandler(navBar, enabled = !screenOff, onExit = onExit)
+    LaunchedEffect(Unit) { navBar.focus.requestFocusSoon() }
     LaunchedEffect(stations.isNullOrEmpty()) {
         if (!stations.isNullOrEmpty()) firstFocus.requestFocusSoon()
     }
@@ -126,9 +127,10 @@ fun RadioScreen(vm: RadioViewModel, onNavigate: (NavSection) -> Unit, onExit: ()
 
 @Composable
 private fun NowPlaying(vm: RadioViewModel, playing: RadioUi?, modifier: Modifier) {
-    Row(modifier.height(150.dp), horizontalArrangement = Arrangement.spacedBy(28.dp), verticalAlignment = Alignment.CenterVertically) {
+    // Compact, so more of the station grid fits on screen.
+    Row(modifier.height(112.dp), horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
         val station = playing?.station
-        Artwork(station?.logo, station?.name ?: "♪", Modifier.size(150.dp).clip(HindsShapes.Large))
+        Artwork(station?.logo, station?.name ?: "♪", Modifier.size(112.dp).clip(HindsShapes.Large))
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (playing == null || station == null) {
                 Text(stringResource(R.string.radio_pick), style = MaterialTheme.typography.titleLarge, color = HindsColors.Muted)
@@ -143,7 +145,7 @@ private fun NowPlaying(vm: RadioViewModel, playing: RadioUi?, modifier: Modifier
                 )
                 if (station.number > 0) Text(station.number.toString(), style = MaterialTheme.typography.labelLarge, color = HindsColors.Muted)
             }
-            Text(station.name, style = MaterialTheme.typography.headlineMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(station.name, style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val line = when (playing.status) {
                 PlayStatus.Tuning, PlayStatus.Buffering -> stringResource(R.string.tuning)
                 PlayStatus.Error -> playing.error.orEmpty()

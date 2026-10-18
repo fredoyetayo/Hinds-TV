@@ -149,11 +149,18 @@ class StalkerClient(
     }
 
     /** One page (1-based) of a VOD category, newest first. */
-    suspend fun videoPage(categoryId: String, page: Int): StalkerVideoPage = authed { ep, tok ->
-        val js = request(
-            ep, tok, "type" to "vod", "action" to "get_ordered_list", "category" to categoryId, "genre" to "*",
-            "sortby" to "added", "fav" to "0", "p" to page.toString(),
+    suspend fun videoPage(
+        categoryId: String,
+        page: Int,
+        byName: Boolean = false,
+        search: String = "",
+    ): StalkerVideoPage = authed { ep, tok ->
+        val params = mutableListOf(
+            "type" to "vod", "action" to "get_ordered_list", "category" to categoryId, "genre" to "*",
+            "sortby" to if (byName) "name" else "added", "fav" to "0", "p" to page.toString(),
         )
+        if (search.isNotBlank()) params += "search" to search.trim()
+        val js = request(ep, tok, *params.toTypedArray())
         val obj = js as? JsonObject
         val items = js.asItemArray().mapNotNull { parseVideo(it, categoryId, ep) }
         val total = obj?.int("total_items") ?: 0
@@ -206,9 +213,12 @@ class StalkerClient(
         out
     }
 
+    /** The portal's link for a video; a `cmd` that is already a URL is the fallback if it refuses. */
     suspend fun videoUrl(cmd: String, series: Int?): String = try {
         createLink("vod", cmd, series)
     } catch (e: StalkerException.BadResponse) {
+        cleanStreamUrl(cmd) ?: throw e
+    } catch (e: StalkerException.StreamUnavailable) {
         cleanStreamUrl(cmd) ?: throw e
     }
 
@@ -223,10 +233,20 @@ class StalkerClient(
             .distinctBy { it.id }
     }
 
-    /** Radio `cmd`s are usually the stream itself; otherwise ask the portal for a link. */
-    suspend fun radioUrl(cmd: String): String =
-        cleanStreamUrl(cmd)?.takeUnless { it.contains("://localhost") || it.contains("://127.0.0.1") }
-            ?: createLink("radio", cmd, series = null)
+    /**
+     * Addresses to try for a radio station, best first: the portal's own link (many panels only
+     * stream with the play token it adds), then the `cmd` itself when that is a usable URL.
+     */
+    suspend fun radioUrls(cmd: String): List<String> {
+        val direct = cleanStreamUrl(cmd)?.takeUnless { it.contains("://localhost") || it.contains("://127.0.0.1") }
+        val linked = try {
+            createLink("radio", cmd, series = null)
+        } catch (e: StalkerException) {
+            if (direct == null) throw e
+            null
+        }
+        return listOfNotNull(linked, direct).distinct()
+    }
 
     private fun parseVideo(o: JsonObject, categoryId: String, ep: HttpUrl): StalkerVideo? {
         val id = o.string("id") ?: return null

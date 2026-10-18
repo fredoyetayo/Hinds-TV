@@ -219,15 +219,27 @@ class StalkerClientTest {
     }
 
     @Test
-    fun `radio stations play their own stream URL`() = runTest {
+    fun `radio asks the portal for a link first and keeps the direct URL as a fallback`() = runTest {
         val client = client()
         val stations = client.radio()
 
         assertEquals(listOf("Talk FM", "Jazz"), stations.map { it.name })
-        assertEquals("http://radio.example/talk", client.radioUrl(stations[0].cmd))
-        // A station without a direct URL asks the portal for a link.
-        assertTrue(client.radioUrl(stations[1].cmd).startsWith("http://radio.example/linked"))
+        assertEquals(
+            listOf("http://radio.example/linked/2", "http://radio.example/talk"),
+            client.radioUrls(stations[0].cmd),
+        )
         assertEquals("radio", portal.requests.last().url.queryParameter("type"))
+        // A station whose cmd is not a URL can only play through the portal's link.
+        assertEquals(listOf("http://radio.example/linked/2"), client.radioUrls(stations[1].cmd))
+    }
+
+    @Test
+    fun `radio plays the direct URL when the portal cannot make a link`() = runTest {
+        portal.radioLinkFails = true
+        val client = client()
+        val stations = client.radio()
+
+        assertEquals(listOf("http://radio.example/talk"), client.radioUrls(stations[0].cmd))
     }
 
     @Test
@@ -300,12 +312,14 @@ class StalkerClientTest {
                         {"id":"1","name":"Talk FM","number":"1","cmd":"ffmpeg http://radio.example/talk"},
                         {"id":2,"name":"Jazz","cmd":"auto /media/radio_2.mpg"}]}""",
                 )
-                "radio/create_link" -> js("""{"cmd":"ffmpeg http://radio.example/linked/2"}""")
+                "radio/create_link" ->
+                    if (radioLinkFails) js("""{"error":"nothing_to_play"}""") else js("""{"cmd":"ffmpeg http://radio.example/linked/2"}""")
                 else -> js("{}")
             }
         }
 
         var vodLinkAsToken = false
+        var radioLinkFails = false
 
         private fun vodList(url: okhttp3.HttpUrl): MockResponse {
             val movie = url.queryParameter("movie_id")

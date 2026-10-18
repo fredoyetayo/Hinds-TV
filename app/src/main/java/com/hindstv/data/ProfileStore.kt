@@ -84,8 +84,15 @@ class ProfileStore(context: Context) {
 
     /** The group the last channel was picked from — zapping stays inside it. */
     var lastGenreId: String?
-        get() = prefs.getString(KEY_LAST_GENRE, null)
+        // Before named lists (v0.3) the single favourites group was "__favorites"; the database
+        // upgrade made it list 1, so point the remembered group there instead of at nothing.
+        get() = prefs.getString(KEY_LAST_GENRE, null)?.let { if (it == LEGACY_FAVORITES) "__list:1" else it }
         set(value) = prefs.edit { putString(KEY_LAST_GENRE, value) }
+
+    /** The group the guide last showed (e.g. a favourites list), so it opens there next time. */
+    var guideGroupId: String?
+        get() = prefs.getString(KEY_GUIDE_GROUP, null)
+        set(value) = prefs.edit { putString(KEY_GUIDE_GROUP, value) }
 
     var lastSyncAt: Long
         get() = prefs.getLong(KEY_LAST_SYNC, 0L)
@@ -114,6 +121,8 @@ class ProfileStore(context: Context) {
         const val KEY_DISCOVERED_EPG = "discovered_epg_url"
         const val KEY_LAST_CHANNEL = "last_channel"
         const val KEY_RECENT_SEARCHES = "recent_searches"
+        const val KEY_GUIDE_GROUP = "guide_group"
+        const val LEGACY_FAVORITES = "__favorites"
         const val KEY_LAST_GENRE = "last_genre"
         const val KEY_LAST_SYNC = "last_sync"
         const val KEY_LAST_EPG_SYNC = "last_epg_sync"

@@ -69,7 +69,8 @@ same MAC) while using Hinds TV.
 | Back | Press twice to exit | Close list |
 
 Along the top of the channel list, Videos and Radio there are section buttons: **Live · Guide · Videos ·
-Radio · Search · Settings**. Press ▲ from the top of a list to reach them.
+Radio · Search · Settings**. However far down a list you are, **Back** jumps straight up to them; Back again
+leaves the screen.
 
 **Favourites lists**
 - Press ☰ on any channel (or while watching it) and tick the lists it belongs in. Make new lists there
@@ -82,8 +83,10 @@ Radio · Search · Settings**. Press ▲ from the top of a list to reach them.
 - If the Fire TV keyboard shows a microphone hint, you can hold the remote's voice button and speak
   instead of typing (this depends on Fire OS, not on the app).
 
-**Videos**
-- Rows of videos by category; **Continue watching** at the top picks up exactly where you stopped.
+**VOD**
+- Categories on the left (Continue watching first, then All VOD and your provider's categories), the
+  chosen one as a grid on the right. **Search** filters the category by title; the order button switches
+  between Newest and A–Z. Big libraries load as you scroll.
 - On a video: **Resume from 12:31** or **Play from start**. Series show their episodes, with what you've
   watched.
 - While playing: ◀ ▶ skip 10 s, ⏪ ⏩ skip 30 s (press repeatedly to go further), Select or ⏯ pause,
@@ -97,7 +100,8 @@ Radio · Search · Settings**. Press ▲ from the top of a list to reach them.
 Videos and radio use your provider's one connection, so live TV stops while they play and comes back when
 you return to Live.
 
-In the **TV guide**:
+In the **TV guide** (⏪ ⏩ switch between groups, e.g. just one favourites list, and it remembers your
+choice; ⏯ jumps back to now):
 - ▲▼ moves between channels.
 - ◀▶ moves between programmes.
 - Channel ▲▼ pages up and down.

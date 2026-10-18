@@ -17,7 +17,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,16 +55,48 @@ enum class NavSection(val label: Int) {
     Settings(R.string.nav_settings),
 }
 
-/** "Live · Guide · Videos · Radio · Settings" in a dark capsule; the current section is raised. */
+/**
+ * Where the section bar is and whether it has focus, so Back can jump straight up to it from deep
+ * in a long list (instead of scrolling all the way back) and only leaves once it is there.
+ */
+@Stable
+class NavBarState {
+    val focus = FocusRequester()
+    var hasFocus by mutableStateOf(false)
+        internal set
+}
+
+@Composable
+fun rememberNavBarState() = remember { NavBarState() }
+
+/**
+ * Back behaviour for a screen with a section bar: first Back goes to the bar, the next one
+ * [onExit]s. [onExit] null means Back does nothing more once the bar has focus.
+ */
+@Composable
+fun NavBackHandler(state: NavBarState, enabled: Boolean = true, onExit: (() -> Unit)?) {
+    val scope = rememberCoroutineScope()
+    androidx.activity.compose.BackHandler(enabled = enabled && (!state.hasFocus || onExit != null)) {
+        if (!state.hasFocus) {
+            scope.launch { state.focus.requestFocusSoon(frames = 8) }
+        } else {
+            onExit?.invoke()
+        }
+    }
+}
+
+/** "Live · Guide · VOD · Radio · Search · Settings" in a dark capsule; the current one is raised. */
 @Composable
 fun TopNav(
     current: NavSection,
     onNavigate: (NavSection) -> Unit,
     modifier: Modifier = Modifier,
-    currentFocus: FocusRequester? = null,
+    state: NavBarState? = null,
 ) {
+    val currentFocus = state?.focus
     Row(
         modifier
+            .then(if (state != null) Modifier.onFocusChanged { state.hasFocus = it.hasFocus } else Modifier)
             .background(HindsColors.Surface, HindsShapes.Pill)
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),

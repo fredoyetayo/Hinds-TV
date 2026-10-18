@@ -1,6 +1,5 @@
 package com.hindstv.ui.search
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
@@ -32,7 +31,9 @@ import com.hindstv.ui.components.NavSection
 import com.hindstv.ui.components.PillButton
 import com.hindstv.ui.components.PosterCard
 import com.hindstv.ui.components.RowTitle
+import com.hindstv.ui.components.NavBackHandler
 import com.hindstv.ui.components.TopNav
+import com.hindstv.ui.components.rememberNavBarState
 import com.hindstv.ui.components.TvTextField
 import com.hindstv.ui.components.formatTime
 import com.hindstv.ui.components.timeRange
@@ -58,29 +59,26 @@ fun SearchScreen(
     val recent by vm.recent.collectAsStateWithLifecycle()
     val nowSec = System.currentTimeMillis() / 1000
 
+    val navBar = rememberNavBarState()
+    // The bar and the box stay put; only the results scroll, so both are always one press away.
+    Column(Modifier.fillMaxSize().background(HindsColors.Background).padding(top = 28.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.search_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
+            TopNav(NavSection.Search, onNavigate, state = navBar)
+        }
+        TvTextField(
+            label = stringResource(R.string.search_field),
+            value = query,
+            onValueChange = vm::onQueryChange,
+            placeholder = stringResource(R.string.search_hint),
+            startEditing = true,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 48.dp, vertical = 16.dp),
+        )
     LazyColumn(
-        Modifier.fillMaxSize().background(HindsColors.Background),
-        contentPadding = PaddingValues(top = 28.dp, bottom = 40.dp),
+        Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(top = 8.dp, bottom = 40.dp),
         verticalArrangement = Arrangement.spacedBy(22.dp),
     ) {
-        item(key = "__header") {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.search_title), style = MaterialTheme.typography.headlineMedium, modifier = Modifier.weight(1f))
-                TopNav(NavSection.Search, onNavigate)
-            }
-        }
-        item(key = "__field") {
-            Column(Modifier.padding(horizontal = 48.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                TvTextField(
-                    label = stringResource(R.string.search_field),
-                    value = query,
-                    onValueChange = vm::onQueryChange,
-                    placeholder = stringResource(R.string.search_hint),
-                    startEditing = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        }
         if (query.trim().length < 2) {
             if (recent.isNotEmpty()) {
                 item(key = "__recent") {
@@ -159,7 +157,8 @@ fun SearchScreen(
             }
         }
     }
-    BackHandler { onExit() }
+    }
+    NavBackHandler(navBar, onExit = onExit)
 }
 
 @Composable
