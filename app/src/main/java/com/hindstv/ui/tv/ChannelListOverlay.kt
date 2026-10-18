@@ -86,6 +86,7 @@ fun ChannelListOverlay(vm: AppViewModel, onNavigate: (NavSection) -> Unit) {
                     sync = sync,
                     onFocused = vm::onGenreFocused,
                     onSelected = vm::selectGenre,
+                    onEditList = vm::editList,
                     onRefresh = vm::refreshChannels,
                 )
                 val list = genreChannels?.takeIf { it.genreId == selectedGenre }
@@ -120,6 +121,7 @@ private fun GenreColumn(
     sync: SyncUi,
     onFocused: (String) -> Unit,
     onSelected: (String) -> Unit,
+    onEditList: (Long) -> Unit,
     onRefresh: () -> Unit,
 ) {
     Column(Modifier.width(260.dp).fillMaxHeight().padding(top = 16.dp)) {
@@ -146,7 +148,17 @@ private fun GenreColumn(
                     colors = HindsStyle.listItemColors(),
                     shape = HindsStyle.listItemShape(),
                     scale = HindsStyle.noScale(),
-                    modifier = Modifier.onFocusChanged { if (it.isFocused) onFocused(genre.id) },
+                    modifier = Modifier
+                        .onFocusChanged { if (it.isFocused) onFocused(genre.id) }
+                        .onKeyEvent {
+                            val listId = genre.listId
+                            if (listId != null && it.type == KeyEventType.KeyDown && it.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_MENU) {
+                                onEditList(listId)
+                                true
+                            } else {
+                                false
+                            }
+                        },
                 )
             }
             item(key = "__actions") { Spacer(Modifier.height(16.dp)) }

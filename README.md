@@ -63,13 +63,24 @@ same MAC) while using Hinds TV.
 | Select / ◀ | Open channel list | Play channel |
 | Live (TV) button | Open TV guide | Open TV guide |
 | ▶ | Show channel info | Move to channels |
-| ☰ Menu | Add/remove favourite | Add/remove favourite |
+| ☰ Menu | Add to a favourites list | Add to a favourites list (on a list: rename/delete it) |
 | ⏪ | Previous channel | — |
 | ⏯ | Stop / resume | — |
 | Back | Press twice to exit | Close list |
 
 Along the top of the channel list, Videos and Radio there are section buttons: **Live · Guide · Videos ·
-Radio · Settings**. Press ▲ from the top of a list to reach them.
+Radio · Search · Settings**. Press ▲ from the top of a list to reach them.
+
+**Favourites lists**
+- Press ☰ on any channel (or while watching it) and tick the lists it belongs in. Make new lists there
+  ("Kids", "Sport", …). Each list appears at the top of the groups, and ▲▼ zaps within it.
+- ☰ on a list in the groups column renames or deletes it.
+
+**Search**
+- One box finds channels, programmes in the TV guide (on now and later), videos and radio as you type.
+  Recent searches are kept as one-press shortcuts.
+- If the Fire TV keyboard shows a microphone hint, you can hold the remote's voice button and speak
+  instead of typing (this depends on Fire OS, not on the app).
 
 **Videos**
 - Rows of videos by category; **Continue watching** at the top picks up exactly where you stopped.
@@ -95,8 +106,8 @@ In the **TV guide**:
 
 ## Development
 
-See [`CLAUDE.md`](CLAUDE.md) for architecture, rules and build commands. See
-[`docs/RESEARCH.md`](docs/RESEARCH.md) for the device, protocol and technology research.
+See [`docs/RESEARCH.md`](docs/RESEARCH.md) for the device, protocol and technology research. Build with
+`./gradlew assembleRelease` (Android SDK required); `./gradlew testDebugUnitTest lintDebug` runs the checks.
 
 ## Licences
 

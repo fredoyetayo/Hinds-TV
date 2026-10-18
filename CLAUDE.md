@@ -60,22 +60,27 @@ app/src/main/java/com/hindstv/
     PlaylistSource.kt          M3U playlist or single stream link; XMLTV guide (gzip-aware); splits videos/radio
     M3uParser.kt               line-streaming extended M3U parser + live/video/radio classification (pure Kotlin)
     XmltvParser.kt             XmlPullParser-streaming XMLTV parser (pure Kotlin, kxml2 in tests)
-  data/db/HindsDatabase.kt     Room v3: channels, genres, programmes, videos, radio (re-syncable caches);
-                               favorites, watch_progress (user data, kept by real migrations)
+  data/db/HindsDatabase.kt     Room v4: channels, genres, programmes, videos, radio (re-syncable caches);
+                               favorite_lists + favorite_items (named lists), watch_progress (user data,
+                               kept by real migrations: 2→3, 3→4)
   data/ChannelRepository.kt    sync source → DB, guide sync; UI reads only from the DB; stream URL resolution
   data/MediaRepository.kt      videos (portal: online, paged; playlist: DB), episodes, radio, resume positions
-  data/ProfileStore.kt         SharedPreferences: profile, cached endpoint, last channel/group, last sync
+  data/ProfileStore.kt         SharedPreferences: profile, cached endpoint + session token, last channel/group,
+                               last sync, recent searches
   player/PlayerEngine.kt       the one ExoPlayer: tuned LoadControl, OkHttp data source, TS flags, FFmpeg ext
   player/ZapController.kt      zap debouncing (lone press = instant, bursts settle 500 ms)
   player/ResumePolicy.kt       when a video counts as started/finished and where to resume (pure, tested)
   ui/AppViewModel.kt           navigation (screen), live TV: overlays, playback, zapping, setup, sync, watchdog
   ui/VideoViewModel.kt         Videos: library rows, details/episodes, video player keys, resume saving
   ui/RadioViewModel.kt         Radio: stations, playback, ICY now-playing, screen off
+  ui/SearchViewModel.kt        search as you type: channels, guide programmes, videos (portal search), radio
   ui/MainActivity.kt           full-screen remote handling in dispatchKeyEvent; lifecycle → VM
   ui/RemoteKeys.kt             keycode → RemoteAction mapping
   ui/tv/                       TvScreen (video, info banner, toasts), ChannelListOverlay, GuideOverlay
   ui/videos/                   VideosScreen (library rows), DetailsPage, VideoPlayerPage
   ui/radio/RadioScreen.kt      now playing + station grid
+  ui/search/SearchScreen.kt    one box, results in rows, recent searches
+  ui/tv/FavoriteDialogs.kt     "Add to list" picker (tick lists, make a new one) and rename/delete
   ui/setup/SetupScreen.kt      MAC portal (URL, MAC + Generate, advanced) or playlist/link (+ XMLTV)
   ui/components/               TvTextField (D-pad-safe input), Common (clock, logo, progress, VideoSurface),
                                Cinema (TopNav pills, PillButton, PosterCard, Artwork, LevelBars, formats)
@@ -99,9 +104,14 @@ tools/fake-portal/             fake Stalker portal + test streams for developmen
   - ☰ toggles favourite.
   - ⏯ stops or resumes (live TV is released, not paused).
   - Back twice exits.
-- **Overlay.** Section pills on top (Live · Guide · Videos · Radio · Settings). Groups on the left (focus
-  previews a group, debounced), channels on the right with what's on now. Select plays, ☰ toggles
-  favourite, Back closes. Footer: Refresh channels.
+- **Overlay.** Section pills on top (Live · Guide · Videos · Radio · Search · Settings). Groups on the left:
+  the user's favourites lists first (★), then All, then the provider's groups (focus previews a group,
+  debounced); channels on the right with what's on now. Select plays, ☰ opens "Add to list" (☰ on a list
+  renames/deletes it), Back closes. Footer: Refresh channels.
+- **Favourites lists.** Any number of named lists; a channel can be in several. Group ids `__list:<id>`.
+  Dialogs are `Dialog` windows, so focus stays inside them and Back closes them.
+- **Search.** Opens with the keyboard up; 300 ms debounce; local results first, the portal's VOD search
+  alongside. Picking a channel watches it full screen.
 - **Guide.** One focusable Canvas for the current group: ▲▼ channel, ◀▶ programme, CH± page, Select plays,
   Back or Guide closes. `MainActivity` passes every key through while the guide is open.
 - **Videos.** Rows per category (portal pages load as rows come into view and as focus nears a row's end);
@@ -109,6 +119,9 @@ tools/fake-portal/             fake Stalker portal + test streams for developmen
   Player: `MainActivity` sends keys to `VideoViewModel.onPlayerKey` (◀▶ ±10 s, ⏪⏩ ±30 s, accumulating;
   Select/⏯ pause). Position saved every 10 s, on pause, Back and `onStop`. Series run on to the next episode.
 - **Radio.** Station grid; Stop; Screen off (black overlay, any key wakes). Back returns to Live.
+- **Speed.** The portal token is kept between launches (no handshake before the first channel; an expired
+  one is renewed once). Playback starts after 500 ms of media. `baseline-prof.txt` pre-compiles app code.
+  The info banner shows "Tuned in x.x s" (logcat `HindsPerf` also logs start-to-first-frame).
 - **Background (`onStop`).** Playback stops (videos save their position first), which frees the decoder and
   the provider connection (Amazon requirement). Live TV resumes on `onStart`.
 
@@ -211,13 +224,17 @@ too; videos are seekable (`vod.mp4` with Range support).
   - Videos: Stalker VOD (categories, paged lists, series models a and c) and playlist videos; details;
     seekable player; Netflix-style resume and "Continue watching"; series run on.
   - Radio: Stalker radio module and playlist radio; ICY now-playing; screen off.
+- [x] **v0.4.**
+  - Named favourites lists (several per channel; rename/delete; zap within a list).
+  - Search across channels, guide, videos and radio; recent searches.
+  - Speed: session token reuse, faster start of playback, baseline profile, on-screen tune time.
 - [ ] **Phase 1 — Prove it on the stick.**
   - Install on the 4K Max and connect to the real portal. Fix any portal quirks.
   - Measure the start, zap and memory budgets.
   - Confirm keycodes for Guide/Recents.
   - Check MP2 audio and 576i/1080i deinterlacing.
 - [ ] **Phase 2 — Guide extras.**
-  - Channel search (FTS4).
+  - Switch search to FTS4 if LIKE gets slow on very large lists.
   - Group switcher inside the guide.
   - Per-channel `get_short_epg` fallback for portals without bulk EPG.
 - [ ] **Phase 3 — Polish.**

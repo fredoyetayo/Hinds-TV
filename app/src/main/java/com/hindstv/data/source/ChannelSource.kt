@@ -126,6 +126,9 @@ interface ChannelSource {
 
     suspend fun videoEpisodes(item: VideoItem): List<VideoEpisode> = emptyList()
 
+    /** Online video search ([hasOnlineVideos] sources only). */
+    suspend fun searchVideos(query: String): List<VideoItem> = emptyList()
+
     /** A playable URL for a video or one of its episodes. */
     suspend fun videoUrl(cmd: String, series: Int?): String = cmd
 

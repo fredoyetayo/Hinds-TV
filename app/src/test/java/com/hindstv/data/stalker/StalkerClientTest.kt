@@ -106,6 +106,46 @@ class StalkerClientTest {
     }
 
     @Test
+    fun `a token kept from last time skips the handshake`() = runTest {
+        val first = client()
+        first.connect()
+        val endpoint = first.session!!.endpoint
+        val token = first.currentToken!!
+        portal.requests.clear()
+
+        val restarted = StalkerClient(
+            http = OkHttpClient(),
+            profile = PortalProfile(portalUrl = server.url("/stalker_portal/c/").toString(), mac = "00:1A:79:12:34:56"),
+            knownEndpoint = endpoint,
+            knownToken = token,
+            clock = { now },
+        )
+        restarted.streamUrl("ffmpeg http://localhost/ch/1")
+
+        assertEquals(listOf("create_link"), portal.requests.map { it.url.queryParameter("action") })
+    }
+
+    @Test
+    fun `an expired kept token is renewed transparently`() = runTest {
+        val first = client()
+        first.connect()
+        val endpoint = first.session!!.endpoint
+        portal.requests.clear()
+
+        val restarted = StalkerClient(
+            http = OkHttpClient(),
+            profile = PortalProfile(portalUrl = server.url("/stalker_portal/c/").toString(), mac = "00:1A:79:12:34:56"),
+            knownEndpoint = endpoint,
+            knownToken = "STALE",
+            clock = { now },
+        )
+        val url = restarted.streamUrl("ffmpeg http://localhost/ch/1")
+
+        assertTrue(url.contains("play_token=xyz"))
+        assertEquals(1, portal.requests.count { it.url.queryParameter("action") == "handshake" })
+    }
+
+    @Test
     fun `reads the bulk programme guide per channel`() = runTest {
         val epg = client().epg(periodHours = 6)
 

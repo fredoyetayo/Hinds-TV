@@ -98,7 +98,9 @@ class PlayerEngine(private val context: Context, http: OkHttpClient) {
             .setBufferDurationsMs(
                 /* minBufferMs = */ 15_000,
                 /* maxBufferMs = */ 30_000,
-                /* bufferForPlaybackMs = */ 1_000,
+                // Start the picture after half a second of media: most of a zap's wait. Live TS
+                // rarely needs more; a stall falls back to the longer after-rebuffer threshold.
+                /* bufferForPlaybackMs = */ 500,
                 /* bufferForPlaybackAfterRebufferMs = */ 2_500,
             )
             .setTargetBufferBytes(32 * 1024 * 1024)

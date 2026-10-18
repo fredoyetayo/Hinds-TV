@@ -348,7 +348,7 @@ Guide, Recents, Settings and Mute are not in Amazon's keycode table. Log `onKeyD
 | 6 | MP2 audio has no hardware decoder | High (no sound on many channels) | FFmpeg audio extension |
 | 7 | Interlaced channels | Low–Medium | Test hardware deinterlacing on the device |
 | 8 | 2 GB RAM, weak GPU | Medium | Streaming parsers, windowed EPG, custom-drawn grid, capped buffers, small image cache |
-| 9 | Cloud dev container can't reach the TV over the LAN | Process | CI builds the APK and publishes it to GitHub Releases; install with Downloader. Or run Claude Code on a local PC for `adb` |
+| 9 | Cloud dev container can't reach the TV over the LAN | Process | CI builds the APK and publishes it to GitHub Releases; install with Downloader. Or develop on a local PC for `adb` |
 | 10 | Provider or Wi-Fi slowness | Not fixable in the app | Fast failure, clear errors, auto-retry; suggest the Amazon Ethernet adapter |
 | 11 | "Are you still watching?" after 4 hours idle | Minor | Document the Fire TV setting |
 | 12 | Licensing | Low | Clean-room protocol implementation; build our own FFmpeg (LGPL decoders only) |
@@ -357,7 +357,7 @@ Guide, Recents, Settings and Mute are not in Amazon's keycode table. Log `onKeyD
 
 ## 11. Build and install workflow
 
-1. **Build:** Gradle command line with the Android cmdline-tools (no Android Studio needed). This works in the Claude Code cloud container: Google's SDK repo and Maven are reachable.
+1. **Build:** Gradle command line with the Android cmdline-tools (no Android Studio needed). This works in a cloud development container: Google's SDK repo and Maven are reachable.
    - Maven Central has rate-limited this container (HTTP 429) before. Add Google's mirror `https://maven-central.storage-download.googleapis.com/maven2/` to `settings.gradle.kts`.
 2. **CI (GitHub Actions):** `setup-java` → `setup-gradle` → decode the release keystore from a secret → `assembleRelease` → attach the APK to a GitHub Release.
 3. **Install on the stick:** in Downloader, enter `https://github.com/<owner>/<repo>/releases/latest/download/hinds-tv.apk`.
@@ -370,7 +370,7 @@ Guide, Recents, Settings and Mute are not in Amazon's keycode table. Log `onKeyD
 
 | Phase | Scope |
 |---|---|
-| **0 — Foundation** | Project scaffold, performance budgets and rules (CLAUDE.md), CI building a signed APK, an app shell that installs on the stick, D-pad navigation, plays a test stream. Proves the build→sideload loop end to end |
+| **0 — Foundation** | Project scaffold, performance budgets and project rules, CI building a signed APK, an app shell that installs on the stick, D-pad navigation, plays a test stream. Proves the build→sideload loop end to end |
 | **1 — Live TV core** | Stalker client (discovery, auth, watchdog, channels, create_link); local DB; channel list by group; full-screen player; fast zapping; favourites; resume last channel on launch |
 | **2 — Guide** | EPG sync; custom TV guide grid; now/next mini-guide overlay; search |
 | **3 — More sources** | Xtream Codes and M3U/XMLTV; multiple profiles; catch-up |

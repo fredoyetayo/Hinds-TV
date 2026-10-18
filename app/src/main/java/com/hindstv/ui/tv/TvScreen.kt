@@ -119,7 +119,14 @@ private fun InfoBanner(vm: AppViewModel, playback: PlaybackUi, modifier: Modifie
                     Text(stringResource(R.string.banner_hint), style = MaterialTheme.typography.bodySmall, color = HindsColors.Muted)
                 }
             }
-            Clock(minute, Modifier.align(Alignment.Top))
+            Column(Modifier.align(Alignment.Top), horizontalAlignment = Alignment.End) {
+                Clock(minute)
+                // Speed check for the owner: time from the button press to the picture.
+                val tuneMs by vm.tuneMs.collectAsStateWithLifecycle()
+                tuneMs?.let {
+                    Text(stringResource(R.string.tuned_in, it / 1000.0), style = MaterialTheme.typography.labelSmall, color = HindsColors.Faint)
+                }
+            }
         }
     }
 }

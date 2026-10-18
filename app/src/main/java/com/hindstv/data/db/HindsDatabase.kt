@@ -40,10 +40,19 @@ data class GenreEntity(
     val censored: Boolean,
 )
 
-/** Favourites are user data: they survive channel list refreshes (keyed by portal channel id). */
-@Entity(tableName = "favorites")
-data class FavoriteEntity(
-    @PrimaryKey val channelId: String,
+/** A named favourites list ("Favourites", "Kids", "Sport"…). User data. */
+@Entity(tableName = "favorite_lists")
+data class FavoriteListEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val sortOrder: Int,
+)
+
+/** A channel in a favourites list; survives channel list refreshes (keyed by portal channel id). */
+@Entity(tableName = "favorite_items", primaryKeys = ["listId", "channelId"], indices = [Index("channelId")])
+data class FavoriteItemEntity(
+    val listId: Long,
+    val channelId: String,
     val addedAt: Long,
 )
 
@@ -135,29 +144,31 @@ abstract class ChannelDao {
     @Query("SELECT * FROM genres ORDER BY sortOrder")
     abstract fun genres(): Flow<List<GenreEntity>>
 
-    @Query(
-        "SELECT c.id, c.number, c.name, c.logo, c.genreId, (f.channelId IS NOT NULL) AS isFavorite " +
-            "FROM channels c LEFT JOIN favorites f ON f.channelId = c.id ORDER BY c.sortOrder",
-    )
+    @Query("SELECT c.id, c.number, c.name, c.logo, c.genreId, $IS_FAVORITE FROM channels c ORDER BY c.sortOrder")
     abstract fun allChannels(): Flow<List<ChannelRow>>
 
     @Query(
-        "SELECT c.id, c.number, c.name, c.logo, c.genreId, (f.channelId IS NOT NULL) AS isFavorite " +
-            "FROM channels c LEFT JOIN favorites f ON f.channelId = c.id WHERE c.genreId = :genreId ORDER BY c.sortOrder",
+        "SELECT c.id, c.number, c.name, c.logo, c.genreId, $IS_FAVORITE FROM channels c " +
+            "WHERE c.genreId = :genreId ORDER BY c.sortOrder",
     )
     abstract fun channelsInGenre(genreId: String): Flow<List<ChannelRow>>
 
     @Query(
         "SELECT c.id, c.number, c.name, c.logo, c.genreId, 1 AS isFavorite " +
-            "FROM channels c INNER JOIN favorites f ON f.channelId = c.id ORDER BY f.addedAt",
+            "FROM channels c INNER JOIN favorite_items i ON i.channelId = c.id WHERE i.listId = :listId ORDER BY i.addedAt",
     )
-    abstract fun favoriteChannels(): Flow<List<ChannelRow>>
+    abstract fun listChannels(listId: Long): Flow<List<ChannelRow>>
 
-    @Query(
-        "SELECT c.id, c.number, c.name, c.logo, c.genreId, (f.channelId IS NOT NULL) AS isFavorite " +
-            "FROM channels c LEFT JOIN favorites f ON f.channelId = c.id WHERE c.id = :id",
-    )
+    @Query("SELECT c.id, c.number, c.name, c.logo, c.genreId, $IS_FAVORITE FROM channels c WHERE c.id = :id")
     abstract suspend fun channelRow(id: String): ChannelRow?
+
+    /** Channel search: names containing the query, those starting with it first. */
+    @Query(
+        "SELECT c.id, c.number, c.name, c.logo, c.genreId, $IS_FAVORITE FROM channels c " +
+            "WHERE c.name LIKE '%' || :query || '%' " +
+            "ORDER BY (c.name LIKE :query || '%') DESC, c.sortOrder LIMIT :limit",
+    )
+    abstract suspend fun searchChannels(query: String, limit: Int): List<ChannelRow>
 
     @Query("SELECT cmd FROM channels WHERE id = :id")
     abstract suspend fun cmd(id: String): String?
@@ -219,14 +230,47 @@ abstract class ChannelDao {
         radio.chunked(1_000).forEach { insertRadio(it) }
     }
 
+    // --- Favourites lists --------------------------------------------------------------------
+
+    @Query("SELECT * FROM favorite_lists ORDER BY sortOrder, id")
+    abstract fun favoriteLists(): Flow<List<FavoriteListEntity>>
+
+    @Query("SELECT * FROM favorite_lists ORDER BY sortOrder, id")
+    abstract suspend fun favoriteListsNow(): List<FavoriteListEntity>
+
+    @Query("SELECT listId FROM favorite_items WHERE channelId = :channelId")
+    abstract suspend fun listsContaining(channelId: String): List<Long>
+
+    @Insert
+    abstract suspend fun insertList(list: FavoriteListEntity): Long
+
+    @Query("UPDATE favorite_lists SET name = :name WHERE id = :id")
+    abstract suspend fun renameList(id: Long, name: String)
+
+    @Query("DELETE FROM favorite_lists WHERE id = :id")
+    protected abstract suspend fun deleteListRow(id: Long)
+
+    @Query("DELETE FROM favorite_items WHERE listId = :id")
+    protected abstract suspend fun deleteListItems(id: Long)
+
+    @Transaction
+    open suspend fun deleteList(id: Long) {
+        deleteListItems(id)
+        deleteListRow(id)
+    }
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
-    abstract suspend fun addFavorite(favorite: FavoriteEntity)
+    abstract suspend fun addToList(item: FavoriteItemEntity)
 
-    @Query("DELETE FROM favorites WHERE channelId = :channelId")
-    abstract suspend fun removeFavorite(channelId: String)
+    @Query("DELETE FROM favorite_items WHERE listId = :listId AND channelId = :channelId")
+    abstract suspend fun removeFromList(listId: Long, channelId: String)
 
-    @Query("SELECT EXISTS(SELECT 1 FROM favorites WHERE channelId = :channelId)")
-    abstract suspend fun isFavorite(channelId: String): Boolean
+    @Query("SELECT EXISTS(SELECT 1 FROM favorite_items WHERE listId = :listId AND channelId = :channelId)")
+    abstract suspend fun isInList(listId: Long, channelId: String): Boolean
+
+    private companion object {
+        const val IS_FAVORITE = "EXISTS(SELECT 1 FROM favorite_items f WHERE f.channelId = c.id) AS isFavorite"
+    }
 }
 
 @Dao
@@ -239,6 +283,12 @@ abstract class MediaDao {
 
     @Query("SELECT * FROM radio ORDER BY sortOrder")
     abstract fun radio(): Flow<List<RadioEntity>>
+
+    @Query("SELECT * FROM radio WHERE name LIKE '%' || :query || '%' ORDER BY sortOrder LIMIT :limit")
+    abstract suspend fun searchRadio(query: String, limit: Int): List<RadioEntity>
+
+    @Query("SELECT * FROM videos WHERE title LIKE '%' || :query || '%' ORDER BY sortOrder LIMIT :limit")
+    abstract suspend fun searchVideos(query: String, limit: Int): List<VideoEntity>
 
     @Query("SELECT cmd FROM radio WHERE id = :id")
     abstract suspend fun radioCmd(id: String): String?
@@ -273,6 +323,13 @@ abstract class EpgDao {
     @Query("SELECT * FROM programmes WHERE start <= :now AND stop > :now")
     abstract suspend fun airingAt(now: Long): List<ProgrammeEntity>
 
+    /** Programme search: on now or later, soonest first. */
+    @Query(
+        "SELECT * FROM programmes WHERE stop > :now AND title LIKE '%' || :query || '%' " +
+            "ORDER BY start LIMIT :limit",
+    )
+    abstract suspend fun search(query: String, now: Long, limit: Int): List<ProgrammeEntity>
+
     @Query(
         "SELECT * FROM programmes WHERE channelId IN (:channelIds) AND stop > :from AND start < :to " +
             "ORDER BY channelId, start",
@@ -291,10 +348,10 @@ abstract class EpgDao {
 
 @Database(
     entities = [
-        ChannelEntity::class, GenreEntity::class, FavoriteEntity::class, ProgrammeEntity::class,
+        ChannelEntity::class, GenreEntity::class, FavoriteListEntity::class, FavoriteItemEntity::class, ProgrammeEntity::class,
         VideoEntity::class, VideoCategoryEntity::class, RadioEntity::class, WatchProgressEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 abstract class HindsDatabase : RoomDatabase() {
@@ -309,9 +366,27 @@ abstract class HindsDatabase : RoomDatabase() {
             Room.databaseBuilder(context, HindsDatabase::class.java, "hinds.db")
                 // Favourites and resume positions are user data, so known upgrades migrate; only
                 // an unknown (older) schema falls back to starting fresh.
-                .addMigrations(MIGRATION_2_3)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
                 .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
+
+        /** v4: named favourites lists. Existing favourites become the list "Favourites". */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `favorite_lists` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`name` TEXT NOT NULL, `sortOrder` INTEGER NOT NULL)",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `favorite_items` (`listId` INTEGER NOT NULL, `channelId` TEXT NOT NULL, " +
+                        "`addedAt` INTEGER NOT NULL, PRIMARY KEY(`listId`, `channelId`))",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_favorite_items_channelId` ON `favorite_items` (`channelId`)")
+                db.execSQL("INSERT INTO favorite_lists (id, name, sortOrder) VALUES (1, 'Favourites', 0)")
+                db.execSQL("INSERT INTO favorite_items (listId, channelId, addedAt) SELECT 1, channelId, addedAt FROM favorites")
+                db.execSQL("DROP TABLE favorites")
+            }
+        }
 
         /** v3 adds videos, radio and resume positions; everything from v2 is kept. */
         val MIGRATION_2_3 = object : Migration(2, 3) {

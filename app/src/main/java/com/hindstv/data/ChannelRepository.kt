@@ -4,7 +4,8 @@ import com.hindstv.data.db.ChannelDao
 import com.hindstv.data.db.ChannelEntity
 import com.hindstv.data.db.ChannelRow
 import com.hindstv.data.db.EpgDao
-import com.hindstv.data.db.FavoriteEntity
+import com.hindstv.data.db.FavoriteItemEntity
+import com.hindstv.data.db.FavoriteListEntity
 import com.hindstv.data.db.GenreEntity
 import com.hindstv.data.db.ProgrammeEntity
 import com.hindstv.data.db.RadioEntity
@@ -28,11 +29,45 @@ class ChannelRepository(
 ) {
     fun genres(): Flow<List<GenreEntity>> = dao.genres()
 
-    fun channels(genreId: String): Flow<List<ChannelRow>> = when (genreId) {
-        FAVORITES -> dao.favoriteChannels()
-        ALL -> dao.allChannels()
-        else -> dao.channelsInGenre(genreId)
+    fun channels(genreId: String): Flow<List<ChannelRow>> {
+        listIdOf(genreId)?.let { return dao.listChannels(it) }
+        return if (genreId == ALL) dao.allChannels() else dao.channelsInGenre(genreId)
     }
+
+    // --- Favourites lists --------------------------------------------------------------------------
+
+    fun favoriteLists(): Flow<List<FavoriteListEntity>> = dao.favoriteLists()
+
+    suspend fun listsContaining(channelId: String): Set<Long> = dao.listsContaining(channelId).toSet()
+
+    /** Creates a list and returns its id. */
+    suspend fun createList(name: String): Long {
+        val order = (dao.favoriteListsNow().maxOfOrNull { it.sortOrder } ?: -1) + 1
+        return dao.insertList(FavoriteListEntity(name = name.trim(), sortOrder = order))
+    }
+
+    suspend fun renameList(listId: Long, name: String) = dao.renameList(listId, name.trim())
+
+    suspend fun deleteList(listId: Long) = dao.deleteList(listId)
+
+    /** Adds the channel to the list or takes it out. Returns true if it is now in the list. */
+    suspend fun toggleInList(listId: Long, channelId: String): Boolean =
+        if (dao.isInList(listId, channelId)) {
+            dao.removeFromList(listId, channelId)
+            false
+        } else {
+            dao.addToList(FavoriteItemEntity(listId, channelId, System.currentTimeMillis()))
+            true
+        }
+
+    /** The first list, created as "Favourites" if there is none yet (fresh installs). */
+    suspend fun defaultListId(defaultName: String): Long =
+        dao.favoriteListsNow().firstOrNull()?.id ?: createList(defaultName)
+
+    suspend fun searchChannels(query: String, limit: Int = 40): List<ChannelRow> = dao.searchChannels(query, limit)
+
+    suspend fun searchProgrammes(query: String, nowSec: Long, limit: Int = 30): List<ProgrammeEntity> =
+        epgDao.search(query, nowSec, limit)
 
     suspend fun channel(id: String): ChannelRow? = dao.channelRow(id)
 
@@ -59,7 +94,7 @@ class ChannelRepository(
             radio = content.radio.mapIndexed { i, r -> RadioEntity(r.id, i, r.number, r.name, r.logo, r.cmd) },
         )
         store.discoveredEpgUrl = content.epgUrl
-        (active as? StalkerSource)?.client?.session?.let { store.endpoint = it.endpoint }
+        rememberSession(active)
         store.lastSyncAt = System.currentTimeMillis()
         return content.channels.size
     }
@@ -84,6 +119,13 @@ class ChannelRepository(
         return stored
     }
 
+    /** Keeps the portal endpoint and session token for the next launch (skips discovery and handshake). */
+    private fun rememberSession(active: ChannelSource) {
+        val client = (active as? StalkerSource)?.client ?: return
+        client.session?.let { if (store.endpoint != it.endpoint) store.endpoint = it.endpoint }
+        client.currentToken?.let { if (store.portalToken != it) store.portalToken = it }
+    }
+
     suspend fun nowNext(channelId: String, nowSec: Long): List<ProgrammeEntity> = epgDao.nowNext(channelId, nowSec)
 
     suspend fun airingAt(nowSec: Long): List<ProgrammeEntity> = epgDao.airingAt(nowSec)
@@ -96,22 +138,18 @@ class ChannelRepository(
         val cmd = dao.cmd(channelId) ?: throw PlaylistException("That channel no longer exists.")
         val active = source()
         val url = active.streamUrl(cmd)
-        (active as? StalkerSource)?.client?.session?.let { if (store.endpoint != it.endpoint) store.endpoint = it.endpoint }
+        rememberSession(active)
         return url
     }
 
-    /** Returns true if the channel is now a favourite. */
-    suspend fun toggleFavorite(channelId: String): Boolean =
-        if (dao.isFavorite(channelId)) {
-            dao.removeFavorite(channelId)
-            false
-        } else {
-            dao.addFavorite(FavoriteEntity(channelId, System.currentTimeMillis()))
-            true
-        }
-
     companion object {
-        const val FAVORITES = "__favorites"
+        private const val LIST_PREFIX = "__list:"
+
+        /** Group id for a favourites list, so lists sit in the group column like any group. */
+        fun listGroupId(listId: Long) = "$LIST_PREFIX$listId"
+
+        fun listIdOf(genreId: String): Long? =
+            if (genreId.startsWith(LIST_PREFIX)) genreId.removePrefix(LIST_PREFIX).toLongOrNull() else null
         const val ALL = "__all"
         const val EPG_PAST_S = 2 * 3600L
         const val EPG_AHEAD_S = 12 * 3600L

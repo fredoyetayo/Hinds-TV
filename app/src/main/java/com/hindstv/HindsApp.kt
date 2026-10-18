@@ -56,7 +56,7 @@ class AppContainer(private val app: Application) {
         val profile = profileStore.profile ?: error("No source configured")
         source?.takeIf { sourceProfile == profile }?.let { return it }
         return synchronized(this) {
-            source?.takeIf { sourceProfile == profile } ?: newSource(profile, profileStore.endpoint).also {
+            source?.takeIf { sourceProfile == profile } ?: newSource(profile, profileStore.endpoint, profileStore.portalToken).also {
                 source = it
                 sourceProfile = profile
             }
@@ -71,8 +71,8 @@ class AppContainer(private val app: Application) {
     }
 
     /** A source for a profile that is not saved yet (setup screen); portals rediscover their endpoint. */
-    fun newSource(profile: SourceProfile, knownEndpoint: String? = null): ChannelSource = when (profile) {
-        is SourceProfile.Stalker -> StalkerSource(StalkerClient(http, profile.portal, knownEndpoint))
+    fun newSource(profile: SourceProfile, knownEndpoint: String? = null, knownToken: String? = null): ChannelSource = when (profile) {
+        is SourceProfile.Stalker -> StalkerSource(StalkerClient(http, profile.portal, knownEndpoint, knownToken))
         is SourceProfile.Playlist -> PlaylistSource(http, profile) { profileStore.discoveredEpgUrl }
     }
 

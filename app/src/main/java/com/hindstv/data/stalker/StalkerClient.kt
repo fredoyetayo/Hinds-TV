@@ -42,6 +42,8 @@ class StalkerClient(
     http: OkHttpClient,
     val profile: PortalProfile,
     knownEndpoint: String? = null,
+    /** The session token from last time; portals usually keep it valid, which saves a handshake. */
+    knownToken: String? = null,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
     private val http = http.newBuilder().callTimeout(30, TimeUnit.SECONDS).build()
@@ -50,7 +52,10 @@ class StalkerClient(
     private val authLock = Mutex()
 
     @Volatile private var endpoint: HttpUrl? = knownEndpoint?.toHttpUrlOrNull()
-    @Volatile private var token: String? = null
+    @Volatile private var token: String? = knownToken?.takeIf { knownEndpoint != null }
+
+    /** The current session token, for the app to keep between launches (never logged). */
+    val currentToken: String? get() = token
     @Volatile private var lastAuthAt = 0L
 
     @Volatile var session: StalkerSession? = null
@@ -154,6 +159,14 @@ class StalkerClient(
         val total = obj?.int("total_items") ?: 0
         val perPage = (obj?.int("max_page_items") ?: items.size).coerceAtLeast(1)
         StalkerVideoPage(items, hasMore = items.isNotEmpty() && page * perPage < total)
+    }
+
+    /** Videos whose title matches [query], across every category (the portal's own search). */
+    suspend fun searchVideos(query: String): List<StalkerVideo> = authed { ep, tok ->
+        request(
+            ep, tok, "type" to "vod", "action" to "get_ordered_list", "category" to "*", "genre" to "*",
+            "search" to query, "sortby" to "added", "fav" to "0", "p" to "1",
+        ).asItemArray().mapNotNull { parseVideo(it, "", ep) }
     }
 
     /**

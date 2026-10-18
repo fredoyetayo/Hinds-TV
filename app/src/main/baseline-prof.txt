@@ -1,0 +1,5 @@
+# Startup and hot-path profile: these methods are compiled ahead of time at install, so the first
+# launch, the first channel list and the first zap don't wait for the JIT. Compose, Media3, Room
+# and OkHttp ship their own profiles; this covers the app's code.
+HSPLcom/hindstv/**->**(**)**
+Lcom/hindstv/**;

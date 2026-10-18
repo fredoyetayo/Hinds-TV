@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.flatMapLatest
@@ -39,7 +40,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** Top-level places. Live TV (with its overlays) is home; videos and radio sit beside it. */
-enum class Screen { Setup, Tv, Videos, Radio }
+enum class Screen { Setup, Tv, Videos, Radio, Search }
 
 enum class Overlay { None, Banner, ChannelList, Guide }
 
@@ -51,7 +52,18 @@ data class PlaybackUi(
     val error: String? = null,
 )
 
-data class GenreItem(val id: String, val title: String)
+/** A group in the channel list; [listId] is set for the user's own favourites lists. */
+data class GenreItem(val id: String, val title: String, val listId: Long? = null)
+
+/** "Add to list" for one channel: which of the user's lists it is in. */
+data class ListPickerUi(
+    val channel: ChannelRow,
+    val lists: List<com.hindstv.data.db.FavoriteListEntity>,
+    val memberOf: Set<Long>,
+)
+
+/** Rename or delete one favourites list. */
+data class ListEditUi(val listId: Long, val name: String)
 
 /** Channels of one group, tagged with the group so the UI never mistakes a stale list for a new one. */
 data class GenreChannels(val genreId: String, val channels: List<ChannelRow>)
@@ -113,14 +125,17 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     // --- Browsing --------------------------------------------------------------------------------
 
-    val genres: StateFlow<List<GenreItem>> = repo.genres()
-        .map { list ->
-            listOf(
-                GenreItem(ChannelRepository.FAVORITES, app.getString(R.string.genre_favorites)),
-                GenreItem(ChannelRepository.ALL, app.getString(R.string.genre_all)),
-            ) + list.map { GenreItem(it.id, it.title) }
-        }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val genres: StateFlow<List<GenreItem>> = combine(repo.favoriteLists(), repo.genres()) { lists, genres ->
+        lists.map { GenreItem(ChannelRepository.listGroupId(it.id), "★  " + it.name, it.id) } +
+            GenreItem(ChannelRepository.ALL, app.getString(R.string.genre_all)) +
+            genres.map { GenreItem(it.id, it.title) }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private val _listPicker = MutableStateFlow<ListPickerUi?>(null)
+    val listPicker: StateFlow<ListPickerUi?> = _listPicker.asStateFlow()
+
+    private val _listEdit = MutableStateFlow<ListEditUi?>(null)
+    val listEdit: StateFlow<ListEditUi?> = _listEdit.asStateFlow()
 
     private val _selectedGenre = MutableStateFlow(store.lastGenreId ?: ChannelRepository.ALL)
     val selectedGenre: StateFlow<String> = _selectedGenre.asStateFlow()
@@ -183,6 +198,13 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
     suspend fun guide(channelIds: List<String>, fromSec: Long, toSec: Long): List<ProgrammeEntity> =
         repo.guide(channelIds, fromSec, toSec)
 
+    /** How long the last channel took from the button press to its first picture (shown in the banner). */
+    private val _tuneMs = MutableStateFlow<Long?>(null)
+    val tuneMs: StateFlow<Long?> = _tuneMs.asStateFlow()
+    private var tuneStartedAt = 0L
+    /** Measures app start to first picture once, on the first channel after launch. */
+    private var coldStart = true
+
     private val zapper = ZapController<ChannelRow>(viewModelScope, SystemClock::uptimeMillis) { tune(it, isRetry = false) }
     private var previousChannel: ChannelRow? = null
     private var autoRetries = 0
@@ -204,6 +226,16 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
                 }
                 else -> Unit
             }
+        }
+
+        override fun onRenderedFirstFrame() {
+            if (engine.owner !== this@AppViewModel || tuneStartedAt == 0L) return
+            val now = SystemClock.uptimeMillis()
+            val ms = if (coldStart) now - android.os.Process.getStartUptimeMillis() else now - tuneStartedAt
+            android.util.Log.i("HindsPerf", (if (coldStart) "start to first frame " else "zap to first frame ") + "${ms}ms")
+            coldStart = false
+            tuneStartedAt = 0L
+            _tuneMs.value = ms
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -365,13 +397,74 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         zapper.request(channel)
     }
 
+    /** ☰ on a channel: choose which favourites lists it belongs to. */
     fun toggleFavorite(channelId: String) {
         viewModelScope.launch {
-            val nowFavorite = repo.toggleFavorite(channelId)
-            showToast(if (nowFavorite) R.string.added_to_favorites else R.string.removed_from_favorites)
-            _playback.update { p ->
-                if (p.channel?.id == channelId) p.copy(channel = p.channel.copy(isFavorite = nowFavorite)) else p
-            }
+            val channel = repo.channel(channelId) ?: return@launch
+            repo.defaultListId(app.getString(R.string.genre_favorites)) // a fresh install starts with one list
+            _listPicker.value = ListPickerUi(channel, repo.favoriteLists().first(), repo.listsContaining(channelId))
+        }
+    }
+
+    fun toggleInList(listId: Long) {
+        val picker = _listPicker.value ?: return
+        viewModelScope.launch {
+            val added = repo.toggleInList(listId, picker.channel.id)
+            val memberOf = if (added) picker.memberOf + listId else picker.memberOf - listId
+            _listPicker.value = picker.copy(memberOf = memberOf)
+            refreshFavoriteMark(picker.channel.id, memberOf.isNotEmpty())
+        }
+    }
+
+    /** "New list…" from the picker: creates it and puts the channel in it straight away. */
+    fun createListWith(name: String) {
+        val picker = _listPicker.value ?: return
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            val id = repo.createList(name)
+            repo.toggleInList(id, picker.channel.id)
+            _listPicker.value = picker.copy(lists = repo.favoriteLists().first(), memberOf = picker.memberOf + id)
+            refreshFavoriteMark(picker.channel.id, true)
+        }
+    }
+
+    fun closeListPicker() {
+        _listPicker.value = null
+    }
+
+    /** ☰ on a list in the group column: rename or delete it. */
+    fun editList(listId: Long) {
+        val list = genres.value.firstOrNull { it.listId == listId } ?: return
+        _listEdit.value = ListEditUi(listId, list.title.removePrefix("★  "))
+    }
+
+    fun renameList(name: String) {
+        val edit = _listEdit.value ?: return
+        _listEdit.value = null
+        if (name.isBlank()) return
+        viewModelScope.launch { repo.renameList(edit.listId, name) }
+    }
+
+    fun deleteList() {
+        val edit = _listEdit.value ?: return
+        _listEdit.value = null
+        viewModelScope.launch {
+            repo.deleteList(edit.listId)
+            val group = ChannelRepository.listGroupId(edit.listId)
+            if (_selectedGenre.value == group) _selectedGenre.value = ChannelRepository.ALL
+            if (zapGenre.value == group) zapGenre.value = ChannelRepository.ALL
+            if (store.lastGenreId == group) store.lastGenreId = ChannelRepository.ALL
+            _playback.value.channel?.let { refreshFavoriteMark(it.id, repo.listsContaining(it.id).isNotEmpty()) }
+        }
+    }
+
+    fun closeListEdit() {
+        _listEdit.value = null
+    }
+
+    private fun refreshFavoriteMark(channelId: String, favourite: Boolean) {
+        _playback.update { p ->
+            if (p.channel?.id == channelId) p.copy(channel = p.channel.copy(isFavorite = favourite)) else p
         }
     }
 
@@ -419,6 +512,8 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     private fun showChannel(channel: ChannelRow) {
         retryJob?.cancel()
+        tuneStartedAt = SystemClock.uptimeMillis()
+        _tuneMs.value = null
         val current = _playback.value.channel
         if (current != null && current.id != channel.id) previousChannel = current
         _playback.value = PlaybackUi(channel = channel, status = PlayStatus.Tuning)
@@ -501,6 +596,15 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         _screen.value = Screen.Tv
         _overlay.value = if (_playback.value.channel != null) Overlay.None else Overlay.ChannelList
         onForeground()
+    }
+
+    /** A channel picked from search: straight to full screen on it. */
+    fun watchFromSearch(channel: ChannelRow) {
+        resumeOnForeground = false
+        _screen.value = Screen.Tv
+        _overlay.value = Overlay.None
+        onForeground()
+        play(channel, ChannelRepository.ALL)
     }
 
     private fun releaseLive() {

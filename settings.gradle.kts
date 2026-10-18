@@ -2,7 +2,7 @@ pluginManagement {
     repositories {
         google()
         // Google's mirror of Maven Central: avoids the HTTP 429 rate limits repo1.maven.org
-        // applies to shared cloud IPs (Claude Code cloud sessions, CI).
+        // applies to shared cloud IPs (cloud development environments, CI).
         maven("https://maven-central.storage-download.googleapis.com/maven2/")
         mavenCentral()
         gradlePluginPortal()

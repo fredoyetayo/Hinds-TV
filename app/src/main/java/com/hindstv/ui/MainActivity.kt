@@ -13,8 +13,11 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hindstv.ui.components.NavSection
 import com.hindstv.ui.radio.RadioScreen
+import com.hindstv.ui.search.SearchScreen
 import com.hindstv.ui.setup.SetupScreen
 import com.hindstv.ui.theme.HindsTheme
+import com.hindstv.ui.tv.ListEditDialog
+import com.hindstv.ui.tv.ListPickerDialog
 import com.hindstv.ui.tv.TvScreen
 import com.hindstv.ui.videos.VideosScreen
 
@@ -22,13 +25,14 @@ class MainActivity : ComponentActivity() {
     private val vm: AppViewModel by viewModels { AppViewModel.Factory }
     private val videoVm: VideoViewModel by viewModels { VideoViewModel.Factory }
     private val radioVm: RadioViewModel by viewModels { RadioViewModel.Factory }
+    private val searchVm: SearchViewModel by viewModels { SearchViewModel.Factory }
 
     /** Keys whose DOWN we consumed; their UP must not leak into Compose (e.g. a stray click). */
     private val consumedKeys = mutableSetOf<Int>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { HindsTheme { HindsRoot(vm, videoVm, radioVm) } }
+        setContent { HindsTheme { HindsRoot(vm, videoVm, radioVm, searchVm) } }
     }
 
     override fun onStart() {
@@ -96,7 +100,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun HindsRoot(vm: AppViewModel, videoVm: VideoViewModel, radioVm: RadioViewModel) {
+private fun HindsRoot(vm: AppViewModel, videoVm: VideoViewModel, radioVm: RadioViewModel, searchVm: SearchViewModel) {
     val screen by vm.screen.collectAsStateWithLifecycle()
     val profileVersion by vm.profileVersion.collectAsStateWithLifecycle()
     LaunchedEffect(profileVersion) { if (profileVersion > 0) videoVm.reset() }
@@ -118,6 +122,11 @@ private fun HindsRoot(vm: AppViewModel, videoVm: VideoViewModel, radioVm: RadioV
                 videoVm.onLeave()
                 vm.openSection(Screen.Radio)
             }
+            NavSection.Search -> {
+                videoVm.onLeave()
+                radioVm.stop()
+                vm.openSection(Screen.Search)
+            }
             NavSection.Settings -> {
                 videoVm.onLeave()
                 radioVm.stop()
@@ -125,6 +134,11 @@ private fun HindsRoot(vm: AppViewModel, videoVm: VideoViewModel, radioVm: RadioV
             }
         }
     }
+
+    val listPicker by vm.listPicker.collectAsStateWithLifecycle()
+    val listEdit by vm.listEdit.collectAsStateWithLifecycle()
+    listPicker?.let { ListPickerDialog(it, vm::toggleInList, vm::createListWith, vm::closeListPicker) }
+    listEdit?.let { ListEditDialog(it, vm::renameList, vm::deleteList, vm::closeListEdit) }
 
     when (screen) {
         Screen.Setup -> {
@@ -140,5 +154,19 @@ private fun HindsRoot(vm: AppViewModel, videoVm: VideoViewModel, radioVm: RadioV
         Screen.Tv -> TvScreen(vm, navigate)
         Screen.Videos -> VideosScreen(videoVm, navigate, onExit = { navigate(NavSection.Live) })
         Screen.Radio -> RadioScreen(radioVm, navigate, onExit = { navigate(NavSection.Live) })
+        Screen.Search -> SearchScreen(
+            searchVm,
+            navigate,
+            onExit = { navigate(NavSection.Live) },
+            onWatch = vm::watchFromSearch,
+            onOpenVideo = { video ->
+                vm.openSection(Screen.Videos)
+                videoVm.openDetails(video)
+            },
+            onPlayRadio = { station ->
+                vm.openSection(Screen.Radio)
+                radioVm.play(station)
+            },
+        )
     }
 }

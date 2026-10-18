@@ -48,6 +48,7 @@ enum class NavSection(val label: Int) {
     Guide(R.string.nav_guide),
     Videos(R.string.nav_videos),
     Radio(R.string.nav_radio),
+    Search(R.string.nav_search),
     Settings(R.string.nav_settings),
 }
 

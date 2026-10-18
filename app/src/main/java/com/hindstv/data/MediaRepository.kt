@@ -49,6 +49,16 @@ class MediaRepository(
     suspend fun videoUrl(item: VideoItem, episode: VideoEpisode?): String =
         source().videoUrl(episode?.cmd ?: item.cmd, episode?.series)
 
+    suspend fun searchVideos(query: String, limit: Int = 40): List<VideoItem> {
+        val active = source()
+        if (active.hasOnlineVideos) return active.searchVideos(query).take(limit)
+        return dao.searchVideos(query, limit).map {
+            VideoItem(id = it.id, categoryId = it.categoryId, title = it.title, poster = it.poster, cmd = it.cmd)
+        }
+    }
+
+    suspend fun searchRadio(query: String, limit: Int = 30): List<RadioEntity> = dao.searchRadio(query, limit)
+
     fun radio(): Flow<List<RadioEntity>> = dao.radio()
 
     suspend fun radioUrl(stationId: String): String {

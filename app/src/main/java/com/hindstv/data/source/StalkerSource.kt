@@ -57,6 +57,14 @@ class StalkerSource(val client: StalkerClient) : ChannelSource {
         )
     }
 
+    override suspend fun searchVideos(query: String): List<VideoItem> = client.searchVideos(query).map {
+        VideoItem(
+            id = it.id, categoryId = it.categoryId, title = it.title, description = it.description,
+            poster = it.poster, year = it.year, durationMin = it.durationMin, genres = it.genres, cmd = it.cmd,
+            episodeNumbers = it.episodeNumbers, isSeries = it.isSeries,
+        )
+    }
+
     override suspend fun videoEpisodes(item: VideoItem): List<VideoEpisode> {
         if (item.episodeNumbers.isNotEmpty()) return item.numberedEpisodes()
         return client.videoEpisodes(item.id).map { VideoEpisode(it.key, it.title, it.season, it.number, it.cmd, it.series) }

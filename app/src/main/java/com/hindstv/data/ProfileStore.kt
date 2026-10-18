@@ -55,6 +55,19 @@ class ProfileStore(context: Context) {
         )
     }
 
+    /** Most recent searches, newest first (shown as shortcuts on the search screen). */
+    var recentSearches: List<String>
+        get() = prefs.getString(KEY_RECENT_SEARCHES, null)?.split('\n')?.filter { it.isNotBlank() }.orEmpty()
+        set(value) = prefs.edit { putString(KEY_RECENT_SEARCHES, value.joinToString("\n")) }
+
+    /**
+     * The portal session token from the last run. Reusing it lets the first channel start without
+     * a handshake; an expired token is renewed automatically. Stays on the device, never logged.
+     */
+    var portalToken: String?
+        get() = prefs.getString(KEY_TOKEN, null)
+        set(value) = prefs.edit { putString(KEY_TOKEN, value) }
+
     /** The API endpoint found by discovery; reusing it skips probing on every launch. */
     var endpoint: String?
         get() = prefs.getString(KEY_ENDPOINT, null)
@@ -97,14 +110,16 @@ class ProfileStore(context: Context) {
         const val KEY_SIGNATURE = "signature"
         const val KEY_TZ = "timezone"
         const val KEY_ENDPOINT = "endpoint"
+        const val KEY_TOKEN = "portal_token"
         const val KEY_DISCOVERED_EPG = "discovered_epg_url"
         const val KEY_LAST_CHANNEL = "last_channel"
+        const val KEY_RECENT_SEARCHES = "recent_searches"
         const val KEY_LAST_GENRE = "last_genre"
         const val KEY_LAST_SYNC = "last_sync"
         const val KEY_LAST_EPG_SYNC = "last_epg_sync"
         val ALL_PROFILE_KEYS = listOf(
             KEY_TYPE, KEY_PLAYLIST_URL, KEY_EPG_URL, KEY_URL, KEY_MAC, KEY_STB, KEY_SN, KEY_DEVICE_ID,
-            KEY_DEVICE_ID2, KEY_SIGNATURE, KEY_TZ, KEY_ENDPOINT, KEY_DISCOVERED_EPG,
+            KEY_DEVICE_ID2, KEY_SIGNATURE, KEY_TZ, KEY_ENDPOINT, KEY_TOKEN, KEY_DISCOVERED_EPG,
         )
     }
 }

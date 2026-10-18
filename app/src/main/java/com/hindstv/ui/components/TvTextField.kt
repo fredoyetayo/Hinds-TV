@@ -52,8 +52,10 @@ fun TvTextField(
     placeholder: String = "",
     keyboardType: KeyboardType = KeyboardType.Text,
     enabled: Boolean = true,
+    /** Open straight into typing (search), instead of waiting for Select. */
+    startEditing: Boolean = false,
 ) {
-    var editing by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(startEditing) }
     var restoreFocus by remember { mutableStateOf(false) }
     val buttonFocus = remember { FocusRequester() }
 
