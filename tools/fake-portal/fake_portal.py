@@ -2,18 +2,20 @@
 """A tiny fake Stalker/Ministra portal for developing Hinds TV without a real subscription.
 
 Serves the JSON API the app uses (handshake, get_profile, genres, channels, create_link,
-watchdog) plus test MPEG-TS streams. Standard library only.
+EPG, videos with series, radio, watchdog) plus test streams. Standard library only.
 
     python3 tools/fake-portal/fake_portal.py --port 8080 --media /path/to/ts-files
 
 Point the app at http://<this-machine>:8080/c/ (from the Android emulator: http://10.0.2.2:8080/c/)
 with any MAC starting 00:1A:79, or use "Playlist or link" with http://10.0.2.2:8080/playlist.m3u
-(its header advertises the XMLTV guide at /epg.xml). Stream files are served from --media as <n>.ts; make test
-streams with tools/fake-portal/make-test-streams.sh.
+(its header advertises the XMLTV guide at /epg.xml). Stream files are served from --media: <n>.ts for channels,
+vod.mp4 for every video (with Range requests, so seeking works) and radio.mp3 for every station; make
+them with tools/fake-portal/make-test-streams.sh.
 """
 import argparse
 import json
 import os
+import re
 import secrets
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -72,6 +74,49 @@ def programmes(channel_index, hours=12):
     return out
 
 
+VOD_CATEGORIES = [
+    {"id": "*", "title": "All"},
+    {"id": "10", "title": "GCSE Maths"},
+    {"id": "11", "title": "GCSE Biology"},
+    {"id": "12", "title": "KS3 Science"},
+]
+
+# (category, title, minutes, extra fields). "series" = episodes by number (one item);
+# is_series = seasons and episodes fetched with movie_id / season_id.
+VIDEOS = [
+    ("10", "Algebra: expanding brackets", 12, {}),
+    ("10", "Simultaneous equations", 15, {}),
+    ("10", "Pythagoras and trigonometry", 3, {"series": [1, 2, 3, 4]}),
+    ("10", "Ratio and proportion", 9, {}),
+    ("11", "Cell Biology", 0, {"is_series": "1"}),
+    ("11", "Microscopy", 11, {}),
+    ("11", "Photosynthesis", 14, {}),
+    ("12", "Forces and motion", 10, {}),
+    ("12", "States of matter", 8, {}),
+]
+
+RADIO = ["Hinds Talk", "Classic Hour", "Jazz Lounge", "News 24 Radio", "Kids Stories", "Chart Hits", "Sport Talk"]
+
+
+def videos(category):
+    out = []
+    for i, (cat, title, minutes, extra) in enumerate(VIDEOS, start=1):
+        if category not in ("*", cat):
+            continue
+        item = {"id": str(i), "name": title, "description": f"{title}, explained step by step for revision.",
+                "year": "2025", "time": str(minutes), "category_id": cat, "cmd": f"/media/{i}.mpg",
+                "screenshot_uri": "", "genres_str": "Revision"}
+        item.update(extra)
+        out.append(item)
+    return out
+
+
+def item_number(cmd):
+    """The id in a cmd such as "/media/12.mpg" or "ffmpeg http://localhost/radio/3.mp3"."""
+    m = re.search(r"(\d+)\.\w+$", cmd.split("?")[0])
+    return m.group(1) if m else "1"
+
+
 def xmltv_time(t):
     return time.strftime("%Y%m%d%H%M%S +0000", time.gmtime(t))
 
@@ -109,6 +154,12 @@ class Portal(BaseHTTPRequestHandler):
             return self.serve_playlist()
         if url.path == "/epg.xml":
             return self.serve_xmltv()
+        if url.path == "/play/movie.php":
+            return self.serve_file("vod.mp4", "video/mp4")
+        if url.path.startswith("/radio/"):
+            return self.serve_file("radio.mp3", "audio/mpeg")
+        if url.path.startswith("/vod/"):
+            return self.serve_file("vod.mp4", "video/mp4")
         if url.path.startswith("/play/"):
             return self.serve_stream(q.get("stream", "1"))
         if url.path != "/server/load.php":
@@ -138,6 +189,35 @@ class Portal(BaseHTTPRequestHandler):
             return self.send_json({"id": n, "cmd": f"ffmpeg http://localhost/play/live.php?stream={n}&extension=ts&play_token={secrets.token_hex(4)}"})
         if call == "itv/get_epg_info":
             return self.send_json({"data": {str(i): programmes(i) for i in range(1, 41)}})
+        if call == "vod/get_categories":
+            return self.send_json(VOD_CATEGORIES)
+        if call == "vod/get_ordered_list":
+            movie = q.get("movie_id")
+            if movie:
+                season = q.get("season_id", "0")
+                if season == "0":
+                    return self.send_json({"total_items": 2, "max_page_items": 14, "data": [
+                        {"id": "1", "name": "Unit 1: Cell structure"},
+                        {"id": "2", "name": "Unit 2: Transport in cells"}]})
+                lessons = {"1": ["Animal and plant cells", "Microscopes", "Cell specialisation"],
+                           "2": ["Diffusion", "Osmosis", "Active transport"]}.get(season, [])
+                return self.send_json({"total_items": len(lessons), "max_page_items": 14, "data": [
+                    {"id": f"{movie}{season}{n}", "name": f"Lesson {n}: {name}", "series_number": n,
+                     "cmd": f"/media/file_{movie}{season}{n}.mpg"} for n, name in enumerate(lessons, start=1)]})
+            items = videos(q.get("category", "*"))
+            page, per = int(q.get("p", "1") or 1), 4
+            return self.send_json({"total_items": len(items), "max_page_items": per, "cur_page": page,
+                                   "data": items[(page - 1) * per: page * per]})
+        if call == "vod/create_link":
+            n = item_number(q.get("cmd", ""))
+            return self.send_json({"id": n, "cmd": f"ffmpeg http://localhost/play/movie.php?stream={n}.mp4&type=vod&play_token={secrets.token_hex(4)}"})
+        if call == "radio/get_ordered_list":
+            data = [{"id": str(i), "name": name, "number": str(i), "cmd": f"ffmpeg http://localhost/radio/{i}.mp3"}
+                    for i, name in enumerate(RADIO, start=1)]
+            return self.send_json({"total_items": len(data), "max_page_items": 20, "data": data})
+        if call == "radio/create_link":
+            n = item_number(q.get("cmd", ""))
+            return self.send_json({"cmd": f"ffmpeg http://localhost/radio/{n}.mp3?token={secrets.token_hex(4)}"})
         if call == "watchdog/get_events":
             return self.send_json({"data": {"msgs": 0}})
         return self.send_json({})
@@ -149,6 +229,15 @@ class Portal(BaseHTTPRequestHandler):
             group = {"1": "Entertainment", "2": "News", "3": "Sport"}[genre]
             lines.append(f'#EXTINF:-1 tvg-id="ch{i}.test" tvg-chno="{i}" group-title="{group}",{name}')
             lines.append(f"http://{host}/play/live.php?stream={i}&extension=ts")
+        for i, (cat, title, minutes, extra) in enumerate(VIDEOS, start=1):
+            if "series" in extra or "is_series" in extra:
+                continue
+            group = next(c["title"] for c in VOD_CATEGORIES if c["id"] == cat)
+            lines.append(f'#EXTINF:-1 group-title="{group}",{title}')
+            lines.append(f"http://{host}/vod/{i}.mp4")
+        for i, name in enumerate(RADIO, start=1):
+            lines.append(f'#EXTINF:-1 group-title="Radio",{name}')
+            lines.append(f"http://{host}/radio/{i}.mp3")
         self.send_text("\n".join(lines) + "\n", ctype="audio/x-mpegurl")
 
     def serve_xmltv(self):
@@ -178,6 +267,37 @@ class Portal(BaseHTTPRequestHandler):
                     self.wfile.write(chunk)
                 except (BrokenPipeError, ConnectionResetError):
                     return
+
+
+    def serve_file(self, name, ctype):
+        """Whole file, or the byte range asked for (players seek in videos with Range requests)."""
+        path = os.path.join(Portal.media_dir, name)
+        if not os.path.exists(path):
+            return self.send_text(f"no {name}", status=404)
+        size = os.path.getsize(path)
+        start, end = 0, size - 1
+        rng = self.headers.get("Range", "")
+        if rng.startswith("bytes="):
+            a, _, b = rng[6:].partition("-")
+            start = int(a) if a else 0
+            end = min(int(b), size - 1) if b else size - 1
+            self.send_response(206)
+            self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+        else:
+            self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Content-Length", str(end - start + 1))
+        self.end_headers()
+        with open(path, "rb") as f:
+            f.seek(start)
+            left = end - start + 1
+            while left > 0 and (chunk := f.read(min(64 * 1024, left))):
+                try:
+                    self.wfile.write(chunk)
+                except (BrokenPipeError, ConnectionResetError):
+                    return
+                left -= len(chunk)
 
 
 def main():

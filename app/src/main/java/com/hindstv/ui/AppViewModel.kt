@@ -38,7 +38,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-enum class Screen { Setup, Tv }
+/** Top-level places. Live TV (with its overlays) is home; videos and radio sit beside it. */
+enum class Screen { Setup, Tv, Videos, Radio }
 
 enum class Overlay { None, Banner, ChannelList, Guide }
 
@@ -102,6 +103,10 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     private val _screen = MutableStateFlow(if (store.profile == null) Screen.Setup else Screen.Tv)
     val screen: StateFlow<Screen> = _screen.asStateFlow()
+
+    /** Bumped when the user connects a different provider (videos and radio start over). */
+    private val _profileVersion = MutableStateFlow(0)
+    val profileVersion: StateFlow<Int> = _profileVersion.asStateFlow()
 
     private val _setup = MutableStateFlow(SetupUi())
     val setup: StateFlow<SetupUi> = _setup.asStateFlow()
@@ -190,7 +195,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
-            if (_playback.value.channel == null) return
+            if (engine.owner !== this@AppViewModel || _playback.value.channel == null) return
             when (playbackState) {
                 Player.STATE_BUFFERING -> setStatus(PlayStatus.Buffering)
                 Player.STATE_READY -> {
@@ -202,6 +207,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         }
 
         override fun onPlayerError(error: PlaybackException) {
+            if (engine.owner !== this@AppViewModel) return
             if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
                 engine.player.seekToDefaultPosition()
                 engine.player.prepare()
@@ -252,8 +258,9 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
     // --- Lifecycle -------------------------------------------------------------------------------
 
     fun onForeground() {
+        if (_screen.value == Screen.Setup) return
+        startWatchdog() // the portal session must stay alive while browsing videos or radio too
         if (_screen.value != Screen.Tv) return
-        startWatchdog()
         val channel = _playback.value.channel
         if (resumeOnForeground && channel != null) {
             resumeOnForeground = false
@@ -424,7 +431,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         try {
             val url = repo.streamUrl(channel.id)
             store.lastChannelId = channel.id
-            engine.play(url)
+            engine.play(url, owner = this)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -481,12 +488,33 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     // --- Setup -----------------------------------------------------------------------------------
 
+    /** Leaves live TV for videos or radio: the one provider connection is theirs now. */
+    fun openSection(screen: Screen) {
+        if (_screen.value == screen) return
+        if (_screen.value == Screen.Tv) releaseLive()
+        _screen.value = screen
+    }
+
+    /** Back to live TV, resuming the channel that was playing. */
+    fun openLive() {
+        if (_screen.value == Screen.Tv) return
+        _screen.value = Screen.Tv
+        _overlay.value = if (_playback.value.channel != null) Overlay.None else Overlay.ChannelList
+        onForeground()
+    }
+
+    private fun releaseLive() {
+        retryJob?.cancel()
+        bannerJob?.cancel()
+        zapper.cancel()
+        if (engine.owner === this) engine.stop()
+        val playback = _playback.value
+        if (playback.channel != null && playback.status != PlayStatus.Stopped) resumeOnForeground = true
+    }
+
     fun openSettings() {
         val profile = store.profile
-        retryJob?.cancel()
-        zapper.cancel()
-        engine.stop()
-        if (_playback.value.channel != null) resumeOnForeground = true
+        if (_screen.value == Screen.Tv) releaseLive() else engine.stop()
         watchdogJob?.cancel()
         _setup.value = SetupUi(
             form = when (profile) {
@@ -570,6 +598,8 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
                 engine.setUserAgent(source.userAgent)
                 val count = repo.sync()
                 if (profileChanged) {
+                    container.media.clearProgress()
+                    _profileVersion.update { it + 1 }
                     store.lastChannelId = null
                     zapGenre.value = ChannelRepository.ALL
                     resumeOnForeground = false

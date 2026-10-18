@@ -54,6 +54,8 @@ import com.hindstv.ui.GenreItem
 import com.hindstv.ui.SyncUi
 import com.hindstv.ui.components.ChannelLogo
 import com.hindstv.ui.components.Clock
+import com.hindstv.ui.components.NavSection
+import com.hindstv.ui.components.TopNav
 import com.hindstv.ui.components.ProgressLine
 import com.hindstv.ui.components.progress
 import com.hindstv.ui.theme.HindsColors
@@ -64,7 +66,7 @@ import com.hindstv.ui.theme.HindsStyle
  * playing channel. Lists are lazy and keyed, so 10k+ channels stay smooth.
  */
 @Composable
-fun ChannelListOverlay(vm: AppViewModel) {
+fun ChannelListOverlay(vm: AppViewModel, onNavigate: (NavSection) -> Unit) {
     val genres by vm.genres.collectAsStateWithLifecycle()
     val selectedGenre by vm.selectedGenre.collectAsStateWithLifecycle()
     val genreChannels by vm.channels.collectAsStateWithLifecycle()
@@ -75,16 +77,16 @@ fun ChannelListOverlay(vm: AppViewModel) {
 
     Box(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxHeight()) {
-            Row(Modifier.fillMaxHeight().background(HindsColors.Panel)) {
+            Column(Modifier.fillMaxHeight().background(HindsColors.Panel)) {
+                TopNav(NavSection.Live, onNavigate, Modifier.padding(start = 28.dp, top = 24.dp, bottom = 4.dp))
+                Row(Modifier.weight(1f)) {
                 GenreColumn(
                     genres = genres,
                     selectedGenre = selectedGenre,
                     sync = sync,
                     onFocused = vm::onGenreFocused,
                     onSelected = vm::selectGenre,
-                    onGuide = vm::openGuide,
                     onRefresh = vm::refreshChannels,
-                    onSettings = vm::openSettings,
                 )
                 val list = genreChannels?.takeIf { it.genreId == selectedGenre }
                 ChannelColumn(
@@ -97,6 +99,7 @@ fun ChannelListOverlay(vm: AppViewModel) {
                     onPlay = { vm.play(it, selectedGenre) },
                     onToggleFavorite = vm::toggleFavorite,
                 )
+                }
             }
             // Soft edge into the video instead of a hard panel border.
             Box(
@@ -117,23 +120,14 @@ private fun GenreColumn(
     sync: SyncUi,
     onFocused: (String) -> Unit,
     onSelected: (String) -> Unit,
-    onGuide: () -> Unit,
     onRefresh: () -> Unit,
-    onSettings: () -> Unit,
 ) {
-    Column(Modifier.width(260.dp).fillMaxHeight().padding(top = 32.dp)) {
-        Text(
-            stringResource(R.string.app_name),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = HindsColors.Accent,
-            modifier = Modifier.padding(horizontal = 28.dp),
-        )
+    Column(Modifier.width(260.dp).fillMaxHeight().padding(top = 16.dp)) {
         Text(
             stringResource(R.string.groups).uppercase(),
             style = MaterialTheme.typography.labelSmall,
             color = HindsColors.Faint,
-            modifier = Modifier.padding(start = 28.dp, top = 20.dp, bottom = 4.dp),
+            modifier = Modifier.padding(start = 28.dp, top = 8.dp, bottom = 4.dp),
         )
         when (sync) {
             SyncUi.Running -> SmallNote(stringResource(R.string.updating_channels), HindsColors.Muted)
@@ -156,9 +150,7 @@ private fun GenreColumn(
                 )
             }
             item(key = "__actions") { Spacer(Modifier.height(16.dp)) }
-            actionItem("__guide", R.string.action_guide, onGuide)
             actionItem("__refresh", R.string.action_refresh, onRefresh)
-            actionItem("__settings", R.string.action_settings, onSettings)
         }
     }
 }
@@ -194,7 +186,7 @@ private fun ChannelColumn(
     var initialFocusDone by remember { mutableStateOf(false) }
     val targetIndex = channels?.indexOfFirst { it.id == playingId }?.coerceAtLeast(0) ?: 0
 
-    Column(Modifier.width(560.dp).fillMaxHeight().padding(top = 32.dp)) {
+    Column(Modifier.width(560.dp).fillMaxHeight().padding(top = 16.dp)) {
         Row(
             Modifier.padding(horizontal = 28.dp).padding(bottom = 12.dp),
             verticalAlignment = Alignment.Bottom,

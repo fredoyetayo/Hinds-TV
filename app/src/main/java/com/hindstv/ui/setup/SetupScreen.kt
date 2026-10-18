@@ -109,7 +109,7 @@ fun SetupScreen(
                     shape = ButtonDefaults.shape(HindsShapes.Pill),
                     colors = ButtonDefaults.colors(
                         containerColor = HindsColors.Accent,
-                        contentColor = Color.White,
+                        contentColor = HindsColors.OnAccent,
                         focusedContainerColor = HindsColors.Focus,
                         focusedContentColor = HindsColors.OnFocus,
                     ),
@@ -138,7 +138,7 @@ private fun BrandPanel() {
         Box(
             Modifier.size(56.dp).background(HindsColors.Accent, HindsShapes.Medium),
             contentAlignment = Alignment.Center,
-        ) { Text("▶", style = MaterialTheme.typography.titleLarge, color = Color.White) }
+        ) { Text("▶", style = MaterialTheme.typography.titleLarge, color = HindsColors.OnAccent) }
         Spacer(Modifier.height(20.dp))
         Text(stringResource(R.string.app_name), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(8.dp))

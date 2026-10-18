@@ -193,6 +193,18 @@ Make the user agent, `stb_type` and model configurable per profile.
   - (b) `type=series&action=get_ordered_list&movie_id=` returns seasons, each with `series[]`.
   - (c) Ministra drill-down by `movie_id/season_id/episode_id`, played with `cmd=/media/file_<id>.mpg`.
 
+- **Hinds TV implementation notes (v0.3):** lists are requested with `category=<id>&genre=*&sortby=added&fav=0&p=N`;
+  item fields used: `id, name|o_name, description, year, time` (minutes), `genres_str, screenshot_uri, cmd,
+  series[], is_series`. Seasons: `movie_id=<id>&season_id=0&episode_id=0`; episodes: `season_id=<sid>`
+  (fields `id, name, series_number, cmd`; missing `cmd` → `/media/file_<id>.mpg`).
+
+### 6.6a Radio
+- **Stations:** `type=radio&action=get_ordered_list&p=N` (paged like itv) → `id, name, number, cmd, logo`.
+- **Playing:** the `cmd` is normally the stream URL itself (strip the player prefix). When it isn't a usable
+  URL (e.g. `localhost` or a `/media/…` path), ask `type=radio&action=create_link&cmd=…`.
+- Unverified against a real portal; a portal without the module returns an empty list or an error, which
+  must not break the channel sync.
+
 ### 6.7 Catch-up
 - A channel supports catch-up when `enable_tv_archive` or `archive` is set.
 - Take the programme id from `get_simple_data_table` rows where `mark_archive=1`.

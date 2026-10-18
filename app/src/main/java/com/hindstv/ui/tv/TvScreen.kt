@@ -14,25 +14,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.ui.compose.PlayerSurface
-import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
-import androidx.media3.ui.compose.modifiers.resizeWithContentScale
-import androidx.media3.ui.compose.state.rememberPresentationState
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.hindstv.R
@@ -42,6 +34,8 @@ import com.hindstv.ui.Overlay
 import com.hindstv.ui.PlayStatus
 import com.hindstv.ui.PlaybackUi
 import com.hindstv.ui.components.ChannelLogo
+import com.hindstv.ui.components.NavSection
+import com.hindstv.ui.components.VideoSurface
 import com.hindstv.ui.components.Clock
 import com.hindstv.ui.components.ProgressLine
 import com.hindstv.ui.components.formatTime
@@ -51,7 +45,7 @@ import com.hindstv.ui.theme.HindsColors
 import com.hindstv.ui.theme.HindsShapes
 
 @Composable
-fun TvScreen(vm: AppViewModel) {
+fun TvScreen(vm: AppViewModel, onNavigate: (NavSection) -> Unit) {
     val playback by vm.playback.collectAsStateWithLifecycle()
     val overlay by vm.overlay.collectAsStateWithLifecycle()
     val toast by vm.toast.collectAsStateWithLifecycle()
@@ -60,7 +54,7 @@ fun TvScreen(vm: AppViewModel) {
         if (playback.channel != null) VideoLayer(vm.player, playback)
         when (overlay) {
             Overlay.Banner -> InfoBanner(vm, playback, Modifier.align(Alignment.BottomCenter))
-            Overlay.ChannelList -> ChannelListOverlay(vm)
+            Overlay.ChannelList -> ChannelListOverlay(vm, onNavigate)
             Overlay.Guide -> GuideOverlay(vm)
             Overlay.None -> Unit
         }
@@ -72,26 +66,10 @@ fun TvScreen(vm: AppViewModel) {
     BackHandler(enabled = overlay == Overlay.Guide) { vm.closeGuide() }
 }
 
-@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 private fun VideoLayer(player: Player, playback: PlaybackUi) {
-    val presentation = rememberPresentationState(player)
-    val view = LocalView.current
-    DisposableEffect(Unit) {
-        view.keepScreenOn = true
-        onDispose { view.keepScreenOn = false }
-    }
     Box(Modifier.fillMaxSize()) {
-        // SurfaceView, not TextureView: lower power, better frame timing, HDR-capable.
-        PlayerSurface(
-            player = player,
-            surfaceType = SURFACE_TYPE_SURFACE_VIEW,
-            modifier = Modifier
-                .align(Alignment.Center)
-                .resizeWithContentScale(ContentScale.Fit, presentation.videoSizeDp),
-        )
-        if (presentation.coverSurface) Box(Modifier.fillMaxSize().background(Color.Black))
-
+        VideoSurface(player)
         when (playback.status) {
             PlayStatus.Tuning, PlayStatus.Buffering -> StatusPill(stringResource(R.string.tuning), Modifier.align(Alignment.Center))
             PlayStatus.Stopped -> StatusPill(stringResource(R.string.stopped), Modifier.align(Alignment.Center))
@@ -166,7 +144,7 @@ private fun ProgrammeLine(label: String, programme: ProgrammeEntity, emphasised:
 }
 
 @Composable
-private fun StatusPill(text: String, modifier: Modifier = Modifier) {
+fun StatusPill(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
         style = MaterialTheme.typography.titleMedium,
@@ -177,7 +155,7 @@ private fun StatusPill(text: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ErrorCard(message: String, modifier: Modifier = Modifier) {
+fun ErrorCard(message: String, modifier: Modifier = Modifier, hint: String = stringResource(R.string.error_retry_hint)) {
     Column(
         modifier = modifier
             .width(560.dp)
@@ -187,7 +165,7 @@ private fun ErrorCard(message: String, modifier: Modifier = Modifier) {
     ) {
         Text(message, style = MaterialTheme.typography.titleMedium, color = HindsColors.Error)
         Spacer(Modifier.height(2.dp))
-        Text(stringResource(R.string.error_retry_hint), style = MaterialTheme.typography.bodyMedium, color = HindsColors.Muted)
+        Text(hint, style = MaterialTheme.typography.bodyMedium, color = HindsColors.Muted)
     }
 }
 

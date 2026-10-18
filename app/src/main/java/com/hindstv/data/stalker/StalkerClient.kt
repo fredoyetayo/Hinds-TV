@@ -97,17 +97,140 @@ class StalkerClient(
         cleanStreamUrl(cmd) ?: throw e
     }
 
-    suspend fun createLink(cmd: String): String = authed { ep, tok ->
+    suspend fun createLink(cmd: String): String = createLink("itv", cmd, series = null)
+
+    /**
+     * `create_link` for any module (`itv`, `vod`, `radio`). [series] is the episode number for
+     * series stored as one VOD item; films must send it empty (`series=0` gives `nothing_to_play`).
+     */
+    suspend fun createLink(type: String, cmd: String, series: Int?): String = authed { ep, tok ->
         val js = request(
             ep, tok,
-            "type" to "itv", "action" to "create_link", "cmd" to cmd, "series" to "",
+            "type" to type, "action" to "create_link", "cmd" to cmd, "series" to (series?.toString() ?: ""),
             "forced_storage" to "undefined", "disable_ad" to "0", "download" to "0", "force_ch_link_check" to "0",
         )
         val obj = js as? JsonObject
         obj?.string("error")?.let { throw StalkerException.StreamUnavailable(it) }
         val raw = obj?.string("cmd") ?: obj?.string("url") ?: (js as? JsonPrimitive)?.text()
-        val url = raw?.let(::cleanStreamUrl) ?: throw StalkerException.BadResponse("Portal returned no stream URL")
+        val url = raw?.let(::cleanStreamUrl)
+            ?: obj?.let { movieUrl(it, ep) }
+            ?: throw StalkerException.BadResponse("Portal returned no stream URL")
         rewriteLocalhost(url, ep)
+    }
+
+    /** Some portals answer a VOD create_link with only `id` + `play_token`; the URL is then implied. */
+    private fun movieUrl(obj: JsonObject, ep: HttpUrl): String? {
+        val id = obj.string("id") ?: return null
+        val playToken = obj.string("play_token") ?: return null
+        return ep.newBuilder().encodedPath("/play/movie.php").query(null)
+            .addQueryParameter("mac", profile.mac)
+            .addQueryParameter("stream", if (id.contains('.')) id else "$id.mp4")
+            .addQueryParameter("play_token", playToken)
+            .addQueryParameter("type", "vod")
+            .build().toString()
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Videos (VOD) and radio
+
+    suspend fun videoCategories(): List<StalkerGenre> = authed { ep, tok ->
+        request(ep, tok, "type" to "vod", "action" to "get_categories")
+            .asItemArray()
+            .mapNotNull { o ->
+                val id = o.string("id") ?: return@mapNotNull null
+                if (id == "*") return@mapNotNull null
+                StalkerGenre(id = id, title = o.string("title") ?: o.string("alias") ?: id, censored = o.flag("censored"))
+            }
+    }
+
+    /** One page (1-based) of a VOD category, newest first. */
+    suspend fun videoPage(categoryId: String, page: Int): StalkerVideoPage = authed { ep, tok ->
+        val js = request(
+            ep, tok, "type" to "vod", "action" to "get_ordered_list", "category" to categoryId, "genre" to "*",
+            "sortby" to "added", "fav" to "0", "p" to page.toString(),
+        )
+        val obj = js as? JsonObject
+        val items = js.asItemArray().mapNotNull { parseVideo(it, categoryId, ep) }
+        val total = obj?.int("total_items") ?: 0
+        val perPage = (obj?.int("max_page_items") ?: items.size).coerceAtLeast(1)
+        StalkerVideoPage(items, hasMore = items.isNotEmpty() && page * perPage < total)
+    }
+
+    /**
+     * Seasons and episodes of a series stored the Ministra way: `movie_id` lists seasons, and
+     * `movie_id` + `season_id` lists a season's episodes. A season that carries its own `series`
+     * array is expanded directly (one item per season, episodes by number).
+     */
+    suspend fun videoEpisodes(movieId: String): List<StalkerEpisode> = authed { ep, tok ->
+        fun list(seasonId: String) = arrayOf(
+            "type" to "vod", "action" to "get_ordered_list", "movie_id" to movieId,
+            "season_id" to seasonId, "episode_id" to "0", "p" to "1",
+        )
+        val seasons = request(ep, tok, *list("0")).asItemArray()
+        val out = ArrayList<StalkerEpisode>()
+        for ((index, season) in seasons.withIndex()) {
+            val seasonId = season.string("id") ?: continue
+            val seasonName = season.string("name") ?: "Season ${index + 1}"
+            val numbers = season.intArray("series")
+            val seasonCmd = season.string("cmd")
+            if (numbers.isNotEmpty() && seasonCmd != null) {
+                numbers.forEach { n -> out += StalkerEpisode("$seasonId:$n", "Episode $n", seasonName, n, seasonCmd, series = n) }
+                continue
+            }
+            for ((i, e) in request(ep, tok, *list(seasonId)).asItemArray().withIndex()) {
+                val id = e.string("id") ?: continue
+                val number = e.int("series_number") ?: e.int("number") ?: (i + 1)
+                out += StalkerEpisode(
+                    key = "$seasonId:$id",
+                    title = e.string("name") ?: "Episode $number",
+                    season = seasonName,
+                    number = number,
+                    cmd = e.string("cmd") ?: "/media/file_$id.mpg",
+                    series = null,
+                )
+            }
+        }
+        out
+    }
+
+    suspend fun videoUrl(cmd: String, series: Int?): String = try {
+        createLink("vod", cmd, series)
+    } catch (e: StalkerException.BadResponse) {
+        cleanStreamUrl(cmd) ?: throw e
+    }
+
+    /** Radio stations (the portal's `radio` module); empty when the portal has none. */
+    suspend fun radio(): List<StalkerRadio> = authed { ep, tok ->
+        orderedListAllPages(ep, tok, "radio")
+            .mapNotNull { o ->
+                val id = o.string("id") ?: return@mapNotNull null
+                val cmd = o.string("cmd") ?: return@mapNotNull null
+                StalkerRadio(id, o.string("name") ?: "Station $id", o.int("number") ?: 0, cmd, o.string("logo")?.let { logoUrl(it, ep) })
+            }
+            .distinctBy { it.id }
+    }
+
+    /** Radio `cmd`s are usually the stream itself; otherwise ask the portal for a link. */
+    suspend fun radioUrl(cmd: String): String =
+        cleanStreamUrl(cmd)?.takeUnless { it.contains("://localhost") || it.contains("://127.0.0.1") }
+            ?: createLink("radio", cmd, series = null)
+
+    private fun parseVideo(o: JsonObject, categoryId: String, ep: HttpUrl): StalkerVideo? {
+        val id = o.string("id") ?: return null
+        val cmd = o.string("cmd") ?: return null
+        return StalkerVideo(
+            id = id,
+            categoryId = o.string("category_id") ?: categoryId,
+            title = o.string("name") ?: o.string("o_name") ?: "Video $id",
+            description = o.string("description"),
+            poster = o.string("screenshot_uri")?.let { posterUrl(it, ep) },
+            year = o.string("year")?.takeUnless { it == "0" || it.equals("N/A", ignoreCase = true) },
+            durationMin = o.int("time") ?: 0,
+            genres = o.string("genres_str"),
+            cmd = cmd,
+            episodeNumbers = o.intArray("series"),
+            isSeries = o.flag("is_series"),
+        )
     }
 
     /**
@@ -312,9 +435,9 @@ class StalkerClient(
         .apply { if (tok != null) add("Authorization", "Bearer $tok") }
         .build()
 
-    private suspend fun orderedListAllPages(ep: HttpUrl, tok: String): List<JsonObject> = coroutineScope {
+    private suspend fun orderedListAllPages(ep: HttpUrl, tok: String, type: String = "itv"): List<JsonObject> = coroutineScope {
         fun page(p: Int) = arrayOf(
-            "type" to "itv", "action" to "get_ordered_list", "genre" to "*", "fav" to "0",
+            "type" to type, "action" to "get_ordered_list", "genre" to "*", "fav" to "0",
             "sortby" to "number", "p" to p.toString(),
         )
         val first = request(ep, tok, *page(1)) as? JsonObject ?: return@coroutineScope emptyList()
@@ -401,6 +524,13 @@ class StalkerClient(
             val parsed = url.toHttpUrlOrNull() ?: return url
             if (parsed.host != "localhost" && parsed.host != "127.0.0.1") return url
             return parsed.newBuilder().scheme(ep.scheme).host(ep.host).port(ep.port).build().toString()
+        }
+
+        /** Screenshots are absolute URLs or portal paths such as `/stalker_portal/screenshots/1.jpg`. */
+        fun posterUrl(path: String, ep: HttpUrl): String? = when {
+            path.startsWith("http://") || path.startsWith("https://") -> path
+            path.startsWith("/") -> ep.resolve(path)?.toString()
+            else -> null
         }
 
         fun logoUrl(logo: String, ep: HttpUrl): String? {

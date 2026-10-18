@@ -1,8 +1,10 @@
 # Hinds TV
 
 A fast, lightweight IPTV player for Amazon Fire TV, built to replace STB Emu. It connects natively to
-Stalker/Ministra ("MAC") portals, and also plays M3U playlists and single stream links. It keeps your
-channel list and TV guide on the device, and is controlled entirely with the Fire TV remote.
+Stalker/Ministra ("MAC") portals, and also plays M3U playlists and single stream links. Besides live TV
+and the TV guide it plays your provider's **videos** (films, series, lessons) and **radio**, and remembers
+where you stopped in every video. It keeps your channel list and TV guide on the device, and is controlled
+entirely with the Fire TV remote.
 
 It is a player only: it contains no channels or content. You need your own legal IPTV subscription.
 
@@ -66,6 +68,24 @@ same MAC) while using Hinds TV.
 | ⏯ | Stop / resume | — |
 | Back | Press twice to exit | Close list |
 
+Along the top of the channel list, Videos and Radio there are section buttons: **Live · Guide · Videos ·
+Radio · Settings**. Press ▲ from the top of a list to reach them.
+
+**Videos**
+- Rows of videos by category; **Continue watching** at the top picks up exactly where you stopped.
+- On a video: **Resume from 12:31** or **Play from start**. Series show their episodes, with what you've
+  watched.
+- While playing: ◀ ▶ skip 10 s, ⏪ ⏩ skip 30 s (press repeatedly to go further), Select or ⏯ pause,
+  Back returns to the video's page. Your place is saved every few seconds, when you stop, and when the TV
+  goes off. Series play the next episode automatically.
+
+**Radio**
+- Pick a station; **Stop** and **Screen off** (black screen, music keeps playing; any button turns the
+  picture back on).
+
+Videos and radio use your provider's one connection, so live TV stops while they play and comes back when
+you return to Live.
+
 In the **TV guide**:
 - ▲▼ moves between channels.
 - ◀▶ moves between programmes.
@@ -80,6 +100,7 @@ See [`CLAUDE.md`](CLAUDE.md) for architecture, rules and build commands. See
 
 ## Licences
 
-The app code is © its author. It bundles FFmpeg audio decoders (LGPL-2.1, built without GPL parts) via the
+The app code is © its author. It bundles the Manrope typeface (SIL Open Font License 1.1; licence text in
+`app/src/main/assets/licenses/`) and FFmpeg audio decoders (LGPL-2.1, built without GPL parts) via the
 Media3 FFmpeg extension (Apache-2.0); see [`ffmpeg-audio/README.md`](ffmpeg-audio/README.md) for how to
 rebuild them from source. The other libraries are Apache-2.0.

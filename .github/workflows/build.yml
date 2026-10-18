@@ -19,7 +19,7 @@ jobs:
     env:
       # Every build gets a higher versionCode, so each APK installs over the previous one.
       VERSION_CODE: ${{ github.run_number }}
-      VERSION_NAME: 0.2.${{ github.run_number }}
+      VERSION_NAME: 0.3.${{ github.run_number }}
       HAS_SIGNING_SECRET: ${{ secrets.HINDS_KEYSTORE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v5

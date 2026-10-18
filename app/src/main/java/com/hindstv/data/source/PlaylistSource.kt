@@ -54,28 +54,51 @@ class PlaylistSource(
         val parsed = M3uParser.parse(generateSequence { source.readUtf8Line() })
         if (parsed.entries.isEmpty()) throw PlaylistException("The playlist has no channels.")
         val genres = LinkedHashMap<String, SourceGenre>()
+        val videoCategories = LinkedHashMap<String, VideoCategory>()
         val usedIds = HashSet<String>()
-        val channels = parsed.entries.mapIndexed { index, e ->
+        val channels = ArrayList<SourceChannel>()
+        val videos = ArrayList<VideoItem>()
+        val radio = ArrayList<RadioStation>()
+        for ((index, e) in parsed.entries.withIndex()) {
             val group = e.group?.trim().orEmpty()
-            val genreId = if (group.isEmpty()) "" else "g:$group"
-            if (group.isNotEmpty()) genres.getOrPut(genreId) { SourceGenre(genreId, group) }
             val tvgId = e.attributes["tvg-id"]?.ifBlank { null }
-            // Stable across refreshes (favourites are keyed by it) without depending on tokenised URLs.
+            val logo = e.attributes["tvg-logo"]?.ifBlank { null }
+            // Stable across refreshes (favourites and resume positions are keyed by it) without
+            // depending on tokenised URLs.
             var id = "m:${tvgId ?: e.name}|$group"
             var n = 2
             while (!usedIds.add(id)) id = "m:${tvgId ?: e.name}|$group#${n++}"
-            SourceChannel(
-                id = id,
-                name = e.name,
-                number = e.attributes["tvg-chno"]?.toIntOrNull() ?: (index + 1),
-                cmd = e.url,
-                logo = e.attributes["tvg-logo"]?.ifBlank { null },
-                genreId = genreId,
-                epgId = tvgId ?: e.attributes["tvg-name"],
-                hasArchive = e.attributes.containsKey("catchup") || e.attributes.containsKey("tvg-rec"),
-            )
+            when (M3uParser.kind(e)) {
+                M3uParser.Kind.Video -> {
+                    val categoryId = "v:$group"
+                    videoCategories.getOrPut(categoryId) { VideoCategory(categoryId, group.ifEmpty { "Videos" }) }
+                    videos += VideoItem(id = id, categoryId = categoryId, title = e.name, poster = logo, cmd = e.url)
+                }
+                M3uParser.Kind.Radio -> radio += RadioStation(id, e.name, radio.size + 1, e.url, logo)
+                M3uParser.Kind.Live -> {
+                    val genreId = if (group.isEmpty()) "" else "g:$group"
+                    if (group.isNotEmpty()) genres.getOrPut(genreId) { SourceGenre(genreId, group) }
+                    channels += SourceChannel(
+                        id = id,
+                        name = e.name,
+                        number = e.attributes["tvg-chno"]?.toIntOrNull() ?: (index + 1),
+                        cmd = e.url,
+                        logo = logo,
+                        genreId = genreId,
+                        epgId = tvgId ?: e.attributes["tvg-name"],
+                        hasArchive = e.attributes.containsKey("catchup") || e.attributes.containsKey("tvg-rec"),
+                    )
+                }
+            }
         }
-        return SourceContent(genres.values.toList(), channels, parsed.epgUrl)
+        return SourceContent(
+            genres = genres.values.toList(),
+            channels = channels,
+            epgUrl = parsed.epgUrl,
+            videoCategories = videoCategories.values.toList(),
+            videos = videos,
+            radio = radio,
+        )
     }
 
     override suspend fun streamUrl(cmd: String): String = cmd
@@ -106,6 +129,6 @@ class PlaylistSource(
 
     private companion object {
         const val PROBE_BYTES = 8_192L
-        const val USER_AGENT = "HindsTV/0.2 (Linux; Android; Fire TV)"
+        const val USER_AGENT = "HindsTV/0.3 (Linux; Android; Fire TV)"
     }
 }

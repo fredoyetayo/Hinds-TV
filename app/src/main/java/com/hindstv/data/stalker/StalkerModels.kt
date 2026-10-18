@@ -36,6 +36,33 @@ data class StalkerProgramme(
     val description: String?,
 )
 
+data class StalkerVideo(
+    val id: String,
+    val categoryId: String,
+    val title: String,
+    val description: String?,
+    val poster: String?,
+    val year: String?,
+    val durationMin: Int,
+    val genres: String?,
+    val cmd: String,
+    val episodeNumbers: List<Int>,
+    val isSeries: Boolean,
+)
+
+data class StalkerVideoPage(val items: List<StalkerVideo>, val hasMore: Boolean)
+
+data class StalkerEpisode(
+    val key: String,
+    val title: String,
+    val season: String?,
+    val number: Int,
+    val cmd: String,
+    val series: Int?,
+)
+
+data class StalkerRadio(val id: String, val name: String, val number: Int, val cmd: String, val logo: String?)
+
 /** Failures the UI can explain to the user. All extend IOException so callers can catch broadly. */
 sealed class StalkerException(message: String, cause: Throwable? = null) : IOException(message, cause) {
     /** Nothing at the URL behaves like a portal (HTML page, 404, wrong path). */

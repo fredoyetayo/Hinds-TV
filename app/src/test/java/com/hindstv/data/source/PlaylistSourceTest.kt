@@ -54,6 +54,38 @@ class PlaylistSourceTest {
     }
 
     @Test
+    fun `videos and radio are separated from live channels`() = runTest {
+        server.enqueue(
+            MockResponse(
+                body = """
+                    #EXTM3U
+                    #EXTINF:-1 group-title="News",Alpha News
+                    http://s/live/a.ts
+                    #EXTINF:-1 tvg-logo="http://l/cells.png" group-title="GCSE Biology",Cell structure
+                    http://s/vod/cells.mp4
+                    #EXTINF:-1 group-title="GCSE Biology",Microscopy
+                    http://s/movie/user/pass/42.mkv
+                    #EXTINF:-1 group-title="UK Radio",Talk FM
+                    http://s/stream/talk
+                    #EXTINF:-1 radio="true",Jazz
+                    http://s/jazz
+                """.trimIndent(),
+            ),
+        )
+
+        val content = source("/list.m3u").load()
+
+        assertEquals(listOf("Alpha News"), content.channels.map { it.name })
+        assertEquals(listOf("News"), content.genres.map { it.title })
+        assertEquals(listOf("GCSE Biology"), content.videoCategories.map { it.title })
+        assertEquals(listOf("Cell structure", "Microscopy"), content.videos.map { it.title })
+        assertEquals("http://l/cells.png", content.videos[0].poster)
+        assertEquals(content.videoCategories[0].id, content.videos[1].categoryId)
+        assertEquals(listOf("Talk FM", "Jazz"), content.radio.map { it.name })
+        assertEquals(listOf(1, 2), content.radio.map { it.number })
+    }
+
+    @Test
     fun `an hls link is a single channel`() = runTest {
         server.enqueue(MockResponse(body = "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-STREAM-INF:BANDWIDTH=1\nlow.m3u8\n"))
 

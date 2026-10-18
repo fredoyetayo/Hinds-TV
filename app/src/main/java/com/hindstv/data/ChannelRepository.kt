@@ -7,6 +7,9 @@ import com.hindstv.data.db.EpgDao
 import com.hindstv.data.db.FavoriteEntity
 import com.hindstv.data.db.GenreEntity
 import com.hindstv.data.db.ProgrammeEntity
+import com.hindstv.data.db.RadioEntity
+import com.hindstv.data.db.VideoCategoryEntity
+import com.hindstv.data.db.VideoEntity
 import com.hindstv.data.source.ChannelSource
 import com.hindstv.data.source.EpgChannelRef
 import com.hindstv.data.source.PlaylistException
@@ -39,7 +42,9 @@ class ChannelRepository(
     suspend fun sync(): Int {
         val active = source()
         val content = active.load()
-        if (content.channels.isEmpty()) throw PlaylistException("No channels were found.")
+        if (content.channels.isEmpty() && content.videos.isEmpty() && content.radio.isEmpty()) {
+            throw PlaylistException("No channels were found.")
+        }
         dao.replaceAll(
             genres = content.genres.mapIndexed { i, g -> GenreEntity(g.id, g.title, i, g.censored) },
             channels = content.channels.mapIndexed { i, c ->
@@ -49,6 +54,9 @@ class ChannelRepository(
                     archiveHours = c.archiveHours, xmltvId = c.epgId, censored = c.censored,
                 )
             },
+            videoCategories = content.videoCategories.mapIndexed { i, c -> VideoCategoryEntity(c.id, c.title, i) },
+            videos = content.videos.mapIndexed { i, v -> VideoEntity(v.id, v.categoryId, i, v.title, v.poster, v.cmd) },
+            radio = content.radio.mapIndexed { i, r -> RadioEntity(r.id, i, r.number, r.name, r.logo, r.cmd) },
         )
         store.discoveredEpgUrl = content.epgUrl
         (active as? StalkerSource)?.client?.session?.let { store.endpoint = it.endpoint }

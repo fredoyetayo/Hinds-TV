@@ -3,17 +3,27 @@ package com.hindstv.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.compose.PlayerSurface
+import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
+import androidx.media3.ui.compose.modifiers.resizeWithContentScale
+import androidx.media3.ui.compose.state.rememberPresentationState
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
@@ -83,3 +93,32 @@ fun ChannelLogo(url: String?, name: String, modifier: Modifier = Modifier) {
 private fun initials(name: String): String =
     name.split(' ', '-', '_').filter { it.isNotBlank() && it.first().isLetterOrDigit() }
         .take(2).joinToString("") { it.first().uppercase() }.ifEmpty { "TV" }
+
+/** The video picture, letterboxed, keeping the screen awake while it is on screen. */
+@androidx.annotation.OptIn(UnstableApi::class)
+@Composable
+fun VideoSurface(player: Player) {
+    val presentation = rememberPresentationState(player)
+    KeepScreenOn()
+    Box(Modifier.fillMaxSize()) {
+        // SurfaceView, not TextureView: lower power, better frame timing, HDR-capable.
+        PlayerSurface(
+            player = player,
+            surfaceType = SURFACE_TYPE_SURFACE_VIEW,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .resizeWithContentScale(ContentScale.Fit, presentation.videoSizeDp),
+        )
+        if (presentation.coverSurface) Box(Modifier.fillMaxSize().background(Color.Black))
+    }
+}
+
+/** Stops the TV's screensaver (which would also stop playback) while this is composed. */
+@Composable
+fun KeepScreenOn() {
+    val view = LocalView.current
+    DisposableEffect(Unit) {
+        view.keepScreenOn = true
+        onDispose { view.keepScreenOn = false }
+    }
+}
