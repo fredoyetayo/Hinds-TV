@@ -2,7 +2,7 @@
 
 _Researched 17 Oct 2026. Version numbers and platform facts were current on that date; re-check versions when scaffolding._
 
-Goal: a fast, lean, sideloaded IPTV player for **Amazon Fire TV Stick 4K**, driven entirely by the Fire TV remote, replacing STB Emu for a **legal** subscription delivered as a Stalker/Ministra ("MAC") portal.
+Goal: a fast, lean, sideloaded IPTV player for **Amazon Fire TV Stick 4K**, driven entirely by the Fire TV remote for a **legal** subscription delivered as a Stalker/Ministra ("MAC") portal.
 
 ---
 
