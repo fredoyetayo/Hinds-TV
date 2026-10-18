@@ -9,6 +9,7 @@ import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.hindstv.core.Http
 import com.hindstv.data.ChannelRepository
+import com.hindstv.data.MediaRepository
 import com.hindstv.data.ProfileStore
 import com.hindstv.data.db.HindsDatabase
 import com.hindstv.data.source.ChannelSource
@@ -44,6 +45,7 @@ class AppContainer(private val app: Application) {
     val profileStore by lazy { ProfileStore(app) }
     val database by lazy { HindsDatabase.create(app) }
     val channels by lazy { ChannelRepository(database.channelDao(), database.epgDao(), profileStore) { source() } }
+    val media by lazy { MediaRepository(database.mediaDao()) { source() } }
     val player by lazy { PlayerEngine(app, http) }
 
     @Volatile private var source: ChannelSource? = null

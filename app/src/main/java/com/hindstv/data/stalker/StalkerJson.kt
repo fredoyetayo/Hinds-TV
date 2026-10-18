@@ -35,3 +35,10 @@ internal fun JsonElement?.asItemArray(): List<JsonObject> = when (this) {
         ?: emptyList()
     else -> emptyList()
 }
+
+/** `[1,2,3]`, `["1","2"]` or `"1,2,3"` → ints; anything else → empty. */
+internal fun JsonObject.intArray(key: String): List<Int> = when (val v = this[key]) {
+    is JsonArray -> v.mapNotNull { it.text()?.trim()?.toIntOrNull() }
+    is JsonPrimitive -> v.text()?.split(',')?.mapNotNull { it.trim().toIntOrNull() }.orEmpty()
+    else -> emptyList()
+}

@@ -93,6 +93,27 @@ object M3uParser {
         return -1
     }
 
+    enum class Kind { Live, Video, Radio }
+
+    private val videoExtensions = setOf("mp4", "mkv", "avi", "mov", "m4v", "webm", "wmv", "flv", "mpg", "mpeg")
+    private val audioExtensions = setOf("mp3", "aac", "ogg", "oga", "opus", "flac", "m4a", "wav")
+    private val radioGroup = Regex("""\bradio\b""", RegexOption.IGNORE_CASE)
+
+    /**
+     * Playlists mix live channels, videos and radio. Explicit markers win (`radio="true"`, Xtream
+     * `/movie/` and `/series/` paths), then the file extension, then a "Radio" group name.
+     */
+    fun kind(entry: Entry): Kind {
+        if (entry.attributes["radio"].equals("true", ignoreCase = true)) return Kind.Radio
+        val path = entry.url.substringBefore('?').substringBefore('#').lowercase()
+        if ("/movie/" in path || "/series/" in path) return Kind.Video
+        val ext = path.substringAfterLast('/').substringAfterLast('.', "")
+        if (ext in videoExtensions) return Kind.Video
+        if (ext in audioExtensions) return Kind.Radio
+        if (entry.group != null && radioGroup.containsMatchIn(entry.group)) return Kind.Radio
+        return Kind.Live
+    }
+
     fun nameFromUrl(url: String): String =
         url.substringBefore('?').trimEnd('/').substringAfterLast('/').substringBeforeLast('.').ifBlank { "Stream" }
 }

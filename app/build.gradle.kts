@@ -6,7 +6,7 @@ plugins {
 
 // CI passes VERSION_CODE / VERSION_NAME so every published build can update the previous one.
 val ciVersionCode = providers.environmentVariable("VERSION_CODE").orNull?.toIntOrNull() ?: 1
-val ciVersionName = providers.environmentVariable("VERSION_NAME").orNull ?: "0.2.0-dev"
+val ciVersionName = providers.environmentVariable("VERSION_NAME").orNull ?: "0.3.0-dev"
 
 android {
     namespace = "com.hindstv"

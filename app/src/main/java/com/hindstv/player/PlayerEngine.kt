@@ -31,7 +31,8 @@ import java.util.concurrent.TimeUnit
  * - extension renderers ON (platform decoders first, FFmpeg fills gaps like MP2 audio when the
  *   ffmpeg-audio module is present);
  * - TS extraction tolerant of open-GOP broadcast streams;
- * - live streams reported as unknown length so a bogus Content-Length can't trigger a seek to the end.
+ * - live streams reported as unknown length so a bogus Content-Length can't trigger a seek to the end;
+ *   videos use the plain HTTP source so they can seek.
  */
 @OptIn(UnstableApi::class)
 class PlayerEngine(private val context: Context, http: OkHttpClient) {
@@ -40,19 +41,35 @@ class PlayerEngine(private val context: Context, http: OkHttpClient) {
         .setUserAgent(PortalProfile.DEFAULT_USER_AGENT)
 
     private var built = false
+    private lateinit var liveSources: DefaultMediaSourceFactory
+    private lateinit var vodSources: DefaultMediaSourceFactory
 
     val player: ExoPlayer by lazy { built = true; build() }
+
+    /**
+     * Who is playing (live TV, videos or radio). Each screen's player listener ignores events
+     * while someone else owns the one player.
+     */
+    var owner: Any? = null
+        private set
 
     fun setUserAgent(userAgent: String) {
         httpFactory.setUserAgent(userAgent)
     }
 
-    fun play(url: String) {
+    /**
+     * Plays [url]. Live streams and radio are endless ([vod] false); videos have a real length so
+     * they can seek and resume from [startMs].
+     */
+    fun play(url: String, owner: Any?, vod: Boolean = false, startMs: Long = 0) {
+        this.owner = owner
         val item = MediaItem.Builder()
             .setUri(url)
             .apply { if (isHls(url)) setMimeType(MimeTypes.APPLICATION_M3U8) }
             .build()
-        player.setMediaItem(item)
+        val player = player
+        val source = (if (vod) vodSources else liveSources).createMediaSource(item)
+        player.setMediaSource(source, startMs.coerceAtLeast(0))
         player.prepare()
         player.playWhenReady = true
     }
@@ -70,7 +87,10 @@ class PlayerEngine(private val context: Context, http: OkHttpClient) {
         val liveDataSourceFactory = DataSource.Factory { LiveDataSource(httpFactory.createDataSource()) }
         val extractors = DefaultExtractorsFactory()
             .setTsExtractorFlags(DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES)
-        val mediaSourceFactory = DefaultMediaSourceFactory(liveDataSourceFactory, extractors)
+            .setConstantBitrateSeekingEnabled(true) // seekable MP3/AAC/TS videos without an index
+        liveSources = DefaultMediaSourceFactory(liveDataSourceFactory, extractors)
+        vodSources = DefaultMediaSourceFactory(httpFactory, extractors)
+        val mediaSourceFactory = liveSources
         val renderers = DefaultRenderersFactory(context)
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
             .setEnableDecoderFallback(true)

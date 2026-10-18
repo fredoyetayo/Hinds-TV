@@ -3,7 +3,8 @@
 A fast, lean IPTV player for **Amazon Fire TV**, sideloaded, driven entirely by the Fire TV remote.
 It replaces STB Emu for the owner's **legal** IPTV subscription, which is a **Stalker/Ministra "MAC" portal**:
 a portal URL plus a MAC address registered with the provider. It also plays **M3U playlists** and single
-stream links (HLS/TS), with an XMLTV guide.
+stream links (HLS/TS), with an XMLTV guide. Besides live TV it has **Videos** (the provider's VOD: the owner's
+are mostly school lessons) with Netflix-style resume, and **Radio**.
 
 - **Target device:** Fire TV Stick 4K Max (2nd gen, `AFTKRT`). It runs Fire OS 8 (Android 11, API 30) on a
   32-bit ARM userspace (armeabi-v7a), with 2 GB RAM and a weak PowerVR GE9215 GPU.
@@ -32,6 +33,8 @@ stream links (HLS/TS), with an XMLTV guide.
    - Always `engine.stop()` before opening a new stream.
    - Never preload neighbouring channels.
    - Zapping goes through `ZapController`, which debounces bursts so portals don't rate-limit (HTTP 429/458).
+   - Live TV, videos and radio share the one `PlayerEngine`. Whoever plays sets `engine.owner`; every player
+     listener ignores events it doesn't own. Leaving a section stops its playback first.
 5. **Clean-room protocol code.** Use the protocol facts in `docs/RESEARCH.md`.
    - Never copy code from GPL clients (pvr.stalker, stalkerhek, OwnTV, stalkervod) or unlicensed ones (STB-Proxy).
    - Never guess or scan MAC addresses or device identities, and never probe portals with made-up ones.
@@ -52,23 +55,31 @@ app/src/main/java/com/hindstv/
     StalkerJson.kt             tolerant JSON accessors (portals mix "1"/1/true, strings/numbers)
     PortalProfile.kt           profile (URL, MAC, STB model, optional device IDs) + Mac.normalize
   data/source/                 ChannelSource abstraction: one interface, two providers
-    ChannelSource.kt           SourceProfile (Stalker | Playlist), SourceChannel, Programme, PlaylistException
-    StalkerSource.kt           wraps StalkerClient (channels, create_link, get_epg_info)
-    PlaylistSource.kt          M3U playlist or single stream link; XMLTV guide (gzip-aware)
-    M3uParser.kt               line-streaming extended M3U parser (pure Kotlin)
+    ChannelSource.kt           SourceProfile, SourceChannel, Programme, VideoItem/Episode/Category, RadioStation
+    StalkerSource.kt           wraps StalkerClient (channels, create_link, get_epg_info, VOD online, radio)
+    PlaylistSource.kt          M3U playlist or single stream link; XMLTV guide (gzip-aware); splits videos/radio
+    M3uParser.kt               line-streaming extended M3U parser + live/video/radio classification (pure Kotlin)
     XmltvParser.kt             XmlPullParser-streaming XMLTV parser (pure Kotlin, kxml2 in tests)
-  data/db/HindsDatabase.kt     Room: channels, genres, programmes (re-syncable caches), favorites (user data)
+  data/db/HindsDatabase.kt     Room v3: channels, genres, programmes, videos, radio (re-syncable caches);
+                               favorites, watch_progress (user data, kept by real migrations)
   data/ChannelRepository.kt    sync source → DB, guide sync; UI reads only from the DB; stream URL resolution
+  data/MediaRepository.kt      videos (portal: online, paged; playlist: DB), episodes, radio, resume positions
   data/ProfileStore.kt         SharedPreferences: profile, cached endpoint, last channel/group, last sync
   player/PlayerEngine.kt       the one ExoPlayer: tuned LoadControl, OkHttp data source, TS flags, FFmpeg ext
   player/ZapController.kt      zap debouncing (lone press = instant, bursts settle 500 ms)
-  ui/AppViewModel.kt           all UI state: screen, overlays, playback, zapping, setup, sync, watchdog
+  player/ResumePolicy.kt       when a video counts as started/finished and where to resume (pure, tested)
+  ui/AppViewModel.kt           navigation (screen), live TV: overlays, playback, zapping, setup, sync, watchdog
+  ui/VideoViewModel.kt         Videos: library rows, details/episodes, video player keys, resume saving
+  ui/RadioViewModel.kt         Radio: stations, playback, ICY now-playing, screen off
   ui/MainActivity.kt           full-screen remote handling in dispatchKeyEvent; lifecycle → VM
   ui/RemoteKeys.kt             keycode → RemoteAction mapping
   ui/tv/                       TvScreen (video, info banner, toasts), ChannelListOverlay, GuideOverlay
+  ui/videos/                   VideosScreen (library rows), DetailsPage, VideoPlayerPage
+  ui/radio/RadioScreen.kt      now playing + station grid
   ui/setup/SetupScreen.kt      MAC portal (URL, MAC + Generate, advanced) or playlist/link (+ XMLTV)
-  ui/components/               TvTextField (D-pad-safe input), Common (clock, logo tile, progress, time formats)
-  ui/theme/Theme.kt            "modern minimal" palette and shared focus styling (HindsStyle)
+  ui/components/               TvTextField (D-pad-safe input), Common (clock, logo, progress, VideoSurface),
+                               Cinema (TopNav pills, PillButton, PosterCard, Artwork, LevelBars, formats)
+  ui/theme/Theme.kt            "Cinema" palette (near-black, gold accent), Manrope type, focus styling
 ffmpeg-audio/                  Media3 FFmpeg *audio* decoder (MP2/AC3/E-AC3/DTS/TrueHD), prebuilt LGPL .so
 tools/fake-portal/             fake Stalker portal + test streams for development without a subscription
 ```
@@ -88,12 +99,18 @@ tools/fake-portal/             fake Stalker portal + test streams for developmen
   - ☰ toggles favourite.
   - ⏯ stops or resumes (live TV is released, not paused).
   - Back twice exits.
-- **Overlay.** Groups on the left (focus previews a group, debounced), channels on the right with what's on now.
-  Select plays, ☰ toggles favourite, Back closes. Footer: TV guide, Refresh channels, Settings.
+- **Overlay.** Section pills on top (Live · Guide · Videos · Radio · Settings). Groups on the left (focus
+  previews a group, debounced), channels on the right with what's on now. Select plays, ☰ toggles
+  favourite, Back closes. Footer: Refresh channels.
 - **Guide.** One focusable Canvas for the current group: ▲▼ channel, ◀▶ programme, CH± page, Select plays,
   Back or Guide closes. `MainActivity` passes every key through while the guide is open.
-- **Background (`onStop`).** Playback stops, which frees the decoder and the provider connection (Amazon
-  requirement). It resumes on `onStart`.
+- **Videos.** Rows per category (portal pages load as rows come into view and as focus nears a row's end);
+  "Continue watching" on top resumes straight into the video. Details: Resume / Play from start, episodes.
+  Player: `MainActivity` sends keys to `VideoViewModel.onPlayerKey` (◀▶ ±10 s, ⏪⏩ ±30 s, accumulating;
+  Select/⏯ pause). Position saved every 10 s, on pause, Back and `onStop`. Series run on to the next episode.
+- **Radio.** Station grid; Stop; Screen off (black overlay, any key wakes). Back returns to Live.
+- **Background (`onStop`).** Playback stops (videos save their position first), which frees the decoder and
+  the provider connection (Amazon requirement). Live TV resumes on `onStart`.
 
 ## Build, test, run
 
@@ -114,7 +131,8 @@ python3 tools/fake-portal/fake_portal.py --port 8080 --media build/test-streams
 ```
 Then use portal `http://10.0.2.2:8080/c/` on the emulator, with any MAC starting `00:1A:79`, or the
 playlist `http://10.0.2.2:8080/playlist.m3u` (it advertises its XMLTV guide at `/epg.xml`). The portal
-serves `get_epg_info` too.
+serves `get_epg_info`, VOD categories/lists (films, a numbered series and a season/episode series) and radio
+too; videos are seekable (`vod.mp4` with Range support).
 
 **Emulator smoke test.**
 - Cloud containers have no KVM, so the emulator runs in software. Expect about 10 minutes to boot and
@@ -188,6 +206,11 @@ serves `get_epg_info` too.
   - Generate MAC.
   - Guide: Stalker `get_epg_info` + XMLTV into Room, now/next in banner and list, custom-drawn guide grid.
   - "Modern minimal" redesign.
+- [x] **v0.3.**
+  - "Cinema" redesign (direction B) with Manrope and section pills.
+  - Videos: Stalker VOD (categories, paged lists, series models a and c) and playlist videos; details;
+    seekable player; Netflix-style resume and "Continue watching"; series run on.
+  - Radio: Stalker radio module and playlist radio; ICY now-playing; screen off.
 - [ ] **Phase 1 — Prove it on the stick.**
   - Install on the 4K Max and connect to the real portal. Fix any portal quirks.
   - Measure the start, zap and memory budgets.
@@ -206,13 +229,10 @@ serves `get_epg_info` too.
   - Parental PIN for censored groups.
   - Account expiry display (`account_info`).
 - [ ] **Phase 4 — More sources.** Xtream Codes API, multiple profiles, per-playlist user agent.
-- [ ] **Phase 5 — VOD, series, catch-up.**
-  - Ministra VOD and all three series models.
+- [ ] **Phase 5 — More VOD, catch-up.**
+  - Series model (b) (`type=series` categories on newer portals); video search; favourite videos.
   - `tv_archive`.
-  - Netflix-style resume: save the position every few seconds and on stop/`onStop` (Room, per video), resume
-    from it next time (with "Play from start" offered), mark finished past ~95%, and show a "Continue
-    watching" row. VOD needs real stream lengths, so it must not use `LiveDataSource`.
-  - Radio (Stalker `radio` module): audio-only playback, screen-off option.
+  - Radio groups and favourites.
 - [ ] **Phase 6 — Self-update** from GitHub Releases (`REQUEST_INSTALL_PACKAGES` + PackageInstaller).
 
 **Known gaps and TODOs:**
@@ -222,4 +242,6 @@ serves `get_epg_info` too.
 - HLS live offset tuning is untested.
 - Stalker `get_epg_info` `period` is treated as hours (12). The response is capped at 40 MB in case a portal
   reads it as days.
-- Playlist streams use the `HindsTV/0.2` user agent. Some providers may need a VLC-like one.
+- Playlist streams use the `HindsTV/0.3` user agent. Some providers may need a VLC-like one.
+- Radio module calls (`type=radio`) and VOD series drill-down are built from protocol notes and the fake
+  portal only; confirm them against the real portal in Phase 1.

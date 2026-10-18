@@ -8,21 +8,27 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.hindstv.ui.components.NavSection
+import com.hindstv.ui.radio.RadioScreen
 import com.hindstv.ui.setup.SetupScreen
 import com.hindstv.ui.theme.HindsTheme
 import com.hindstv.ui.tv.TvScreen
+import com.hindstv.ui.videos.VideosScreen
 
 class MainActivity : ComponentActivity() {
     private val vm: AppViewModel by viewModels { AppViewModel.Factory }
+    private val videoVm: VideoViewModel by viewModels { VideoViewModel.Factory }
+    private val radioVm: RadioViewModel by viewModels { RadioViewModel.Factory }
 
     /** Keys whose DOWN we consumed; their UP must not leak into Compose (e.g. a stray click). */
     private val consumedKeys = mutableSetOf<Int>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { HindsTheme { HindsRoot(vm) } }
+        setContent { HindsTheme { HindsRoot(vm, videoVm, radioVm) } }
     }
 
     override fun onStart() {
@@ -31,6 +37,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        videoVm.onBackground() // saves the resume position before the player stops
+        radioVm.stop()
         vm.onBackground()
         super.onStop()
     }
@@ -44,6 +52,22 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_UP && consumedKeys.remove(event.keyCode)) return true
+        // Radio's "screen off": any button brings the picture back (and does nothing else).
+        if (vm.screen.value == Screen.Radio && radioVm.screenOff.value) {
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                consumedKeys += event.keyCode
+                radioVm.setScreenOff(false)
+            }
+            return true
+        }
+        // The video player has nothing focusable; its keys go straight to the view model.
+        if (vm.screen.value == Screen.Videos && videoVm.page.value == VideoPageUi.Player && event.keyCode != KeyEvent.KEYCODE_BACK) {
+            if (event.action == KeyEvent.ACTION_DOWN && videoVm.onPlayerKey(event.keyCode)) {
+                consumedKeys += event.keyCode
+                return true
+            }
+            if (event.action == KeyEvent.ACTION_DOWN) return true // never move focus behind the picture
+        }
         // The guide handles every key itself (channel paging, Back, Guide to close).
         if (vm.screen.value == Screen.Tv && !vm.isGuideOpen) {
             val action = RemoteKeys.map(event.keyCode, vm.isFullscreen)
@@ -72,8 +96,36 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun HindsRoot(vm: AppViewModel) {
+private fun HindsRoot(vm: AppViewModel, videoVm: VideoViewModel, radioVm: RadioViewModel) {
     val screen by vm.screen.collectAsStateWithLifecycle()
+    val profileVersion by vm.profileVersion.collectAsStateWithLifecycle()
+    LaunchedEffect(profileVersion) { if (profileVersion > 0) videoVm.reset() }
+
+    // One provider connection: whoever is playing lets go before the next section starts.
+    val navigate: (NavSection) -> Unit = { section ->
+        when (section) {
+            NavSection.Live, NavSection.Guide -> {
+                videoVm.onLeave()
+                radioVm.stop()
+                vm.openLive()
+                if (section == NavSection.Guide) vm.openGuide()
+            }
+            NavSection.Videos -> {
+                radioVm.stop()
+                vm.openSection(Screen.Videos)
+            }
+            NavSection.Radio -> {
+                videoVm.onLeave()
+                vm.openSection(Screen.Radio)
+            }
+            NavSection.Settings -> {
+                videoVm.onLeave()
+                radioVm.stop()
+                vm.openSettings()
+            }
+        }
+    }
+
     when (screen) {
         Screen.Setup -> {
             val setup by vm.setup.collectAsStateWithLifecycle()
@@ -85,6 +137,8 @@ private fun HindsRoot(vm: AppViewModel) {
                 onCancel = vm::cancelSetup,
             )
         }
-        Screen.Tv -> TvScreen(vm)
+        Screen.Tv -> TvScreen(vm, navigate)
+        Screen.Videos -> VideosScreen(videoVm, navigate, onExit = { navigate(NavSection.Live) })
+        Screen.Radio -> RadioScreen(radioVm, navigate, onExit = { navigate(NavSection.Live) })
     }
 }

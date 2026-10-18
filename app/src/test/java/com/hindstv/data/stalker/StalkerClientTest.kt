@@ -120,6 +120,77 @@ class StalkerClientTest {
     }
 
     @Test
+    fun `lists video categories and pages through a category`() = runTest {
+        val client = client()
+
+        assertEquals(listOf("GCSE Maths", "GCSE Biology"), client.videoCategories().map { it.title })
+        val first = client.videoPage("5", page = 1)
+        assertTrue(first.hasMore)
+        val algebra = first.items[0]
+        assertEquals("Algebra basics", algebra.title)
+        assertEquals("2024", algebra.year)
+        assertEquals(12, algebra.durationMin)
+        assertTrue(algebra.poster!!.endsWith("/stalker_portal/screenshots/1.jpg"))
+        assertEquals(listOf(1, 2, 3), first.items[1].episodeNumbers)
+        val second = client.videoPage("5", page = 2)
+        assertFalse(second.hasMore)
+        assertEquals(listOf("Ratios"), second.items.map { it.title })
+        assertEquals("added", portal.requests.last().url.queryParameter("sortby"))
+    }
+
+    @Test
+    fun `a film's link is created without an episode number`() = runTest {
+        val url = client().videoUrl("/media/9.mpg", series = null)
+
+        val request = portal.requests.last()
+        assertEquals("vod", request.url.queryParameter("type"))
+        assertEquals("", request.url.queryParameter("series"))
+        assertEquals("http://cdn.example/vod/9.mp4", url)
+    }
+
+    @Test
+    fun `an episode's link names the episode`() = runTest {
+        client().videoUrl("/media/10.mpg", series = 2)
+        assertEquals("2", portal.requests.last().url.queryParameter("series"))
+    }
+
+    @Test
+    fun `a link given as id and play token becomes a movie URL`() = runTest {
+        portal.vodLinkAsToken = true
+
+        val url = client().videoUrl("/media/9.mpg", series = null)
+
+        assertTrue(url.startsWith("http://${server.hostName}:${server.port}/play/movie.php?"))
+        assertTrue(url.contains("stream=9.mp4"))
+        assertTrue(url.contains("play_token=tok9"))
+        assertTrue(url.contains("type=vod"))
+    }
+
+    @Test
+    fun `series seasons and episodes are drilled into`() = runTest {
+        val episodes = client().videoEpisodes("77")
+
+        assertEquals(listOf("Lesson 1", "Lesson 2", "Episode 1", "Episode 2"), episodes.map { it.title })
+        assertEquals(listOf("Unit 1", "Unit 1", "Unit 2", "Unit 2"), episodes.map { it.season })
+        assertEquals("/media/file_501.mpg", episodes[1].cmd) // no cmd: the portal's file path
+        assertEquals(null, episodes[0].series)
+        assertEquals(2, episodes[3].series) // a season carrying its own episode numbers
+        assertEquals(4, episodes.map { it.key }.toSet().size)
+    }
+
+    @Test
+    fun `radio stations play their own stream URL`() = runTest {
+        val client = client()
+        val stations = client.radio()
+
+        assertEquals(listOf("Talk FM", "Jazz"), stations.map { it.name })
+        assertEquals("http://radio.example/talk", client.radioUrl(stations[0].cmd))
+        // A station without a direct URL asks the portal for a link.
+        assertTrue(client.radioUrl(stations[1].cmd).startsWith("http://radio.example/linked"))
+        assertEquals("radio", portal.requests.last().url.queryParameter("type"))
+    }
+
+    @Test
     fun `unregistered device reports the portal's message`() = runTest {
         portal.blockMessage = "MAC address not registered"
         try {
@@ -180,7 +251,42 @@ class StalkerClientTest {
                 }
                 "itv/get_epg_info" -> js(EPG)
                 "itv/create_link" -> js("""{"id":"1","cmd":"ffmpeg http://localhost/play/live.php?stream=1&play_token=xyz"}""")
+                "vod/get_categories" -> js("""[{"id":"*","title":"All"},{"id":"5","title":"GCSE Maths"},{"id":"6","title":"GCSE Biology"}]""")
+                "vod/get_ordered_list" -> vodList(url)
+                "vod/create_link" ->
+                    if (vodLinkAsToken) js("""{"id":"9","play_token":"tok9"}""") else js("""{"cmd":"ffmpeg http://cdn.example/vod/9.mp4"}""")
+                "radio/get_ordered_list" -> js(
+                    """{"total_items":2,"max_page_items":10,"data":[
+                        {"id":"1","name":"Talk FM","number":"1","cmd":"ffmpeg http://radio.example/talk"},
+                        {"id":2,"name":"Jazz","cmd":"auto /media/radio_2.mpg"}]}""",
+                )
+                "radio/create_link" -> js("""{"cmd":"ffmpeg http://radio.example/linked/2"}""")
                 else -> js("{}")
+            }
+        }
+
+        var vodLinkAsToken = false
+
+        private fun vodList(url: okhttp3.HttpUrl): MockResponse {
+            val movie = url.queryParameter("movie_id")
+            val season = url.queryParameter("season_id")
+            return when {
+                movie == "77" && season == "0" -> js(
+                    """{"total_items":2,"max_page_items":10,"data":[
+                        {"id":"s1","name":"Unit 1"},
+                        {"id":"s2","name":"Unit 2","series":[1,2],"cmd":"/media/s2.mpg"}]}""",
+                )
+                movie == "77" && season == "s1" -> js(
+                    """{"total_items":2,"max_page_items":10,"data":[
+                        {"id":"500","name":"Lesson 1","series_number":"1","cmd":"/media/file_500.mpg"},
+                        {"id":"501","name":"Lesson 2","series_number":2}]}""",
+                )
+                url.queryParameter("p") == "1" -> js(
+                    """{"total_items":3,"max_page_items":2,"data":[
+                        {"id":"1","name":"Algebra basics","year":"2024","time":"12","screenshot_uri":"/stalker_portal/screenshots/1.jpg","cmd":"/media/1.mpg"},
+                        {"id":"2","name":"Geometry","series":["1","2","3"],"cmd":"/media/2.mpg","year":"0"}]}""",
+                )
+                else -> js("""{"total_items":3,"max_page_items":2,"data":[{"id":"3","name":"Ratios","cmd":"/media/3.mpg"}]}""")
             }
         }
 
