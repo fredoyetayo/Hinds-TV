@@ -33,6 +33,21 @@ Then install the app, either way:
 
 Hinds TV appears under **Apps** (Recent / My Library).
 
+## Try it on a computer
+
+You can run the app on Windows or a Mac in Android Studio's TV emulator:
+
+1. Install [Android Studio](https://developer.android.com/studio) (free).
+2. **Device Manager → ＋ → TV → Television (1080p) → Next**, pick an **Android TV** system image (API 30 or
+   newer; on Apple Silicon Macs choose an arm64 image) → **Finish**, then press ▶ to start it.
+3. From the latest GitHub Release download **`hinds-tv-emulator.apk`** (not `hinds-tv.apk`, which is for
+   the Fire TV) and drag it onto the emulator window to install.
+4. Open Hinds TV from the emulator's apps row.
+
+The keyboard is the remote: arrows = D-pad, Enter = Select, Esc = Back, and the emulator's side panel
+(**⋯ → Directional pad**) has Menu and media buttons. Your provider allows one stream at a time, so don't
+watch on the TV and the emulator together; the emulator uses the same MAC, so your portal works there too.
+
 ## First-time setup
 
 Choose how you connect.

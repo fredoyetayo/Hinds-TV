@@ -53,10 +53,20 @@ jobs:
       - name: Rename APK
         run: cp app/build/outputs/apk/release/app-release.apk hinds-tv.apk
 
+      # Same app for testing on a computer: Android Studio's TV emulator runs x86_64 (Windows,
+      # Intel Macs) or arm64 (Apple Silicon), which the Fire TV build (32-bit ARM only) can't
+      # install on. FFmpeg audio is ARM-32 only, so MP2/AC3 channels may be silent there.
+      - name: Build emulator APK
+        run: |
+          ./gradlew assembleRelease -Phinds.abis=x86_64,arm64-v8a --console=plain
+          cp app/build/outputs/apk/release/app-release.apk hinds-tv-emulator.apk
+
       - uses: actions/upload-artifact@v4
         with:
           name: hinds-tv-${{ env.VERSION_NAME }}
-          path: hinds-tv.apk
+          path: |
+            hinds-tv.apk
+            hinds-tv-emulator.apk
 
       - uses: actions/upload-artifact@v4
         if: failure()
@@ -69,7 +79,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v$VERSION_NAME" hinds-tv.apk \
+          gh release create "v$VERSION_NAME" hinds-tv.apk hinds-tv-emulator.apk \
             --target "$GITHUB_SHA" \
             --title "Hinds TV $VERSION_NAME" \
             --notes "Built from ${GITHUB_SHA::7}. Install: see README (Downloader or adb)." \
