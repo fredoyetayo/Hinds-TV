@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hinds TV · Recent channels</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/f0f5bd0ad344d8eafbaee286c82a1a4e">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="hinds {{themeClass}}" style="position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #000000; color: var(--text); font-family: Manrope, system-ui, -apple-system, 'Segoe UI', sans-serif;">
+
+<img src="/_blob/fd1bca32c150fd9bf6b9ddf267f09c93" alt="Live picture: a packed stadium under the mountains, players on the field" style="position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; object-fit: cover; display: block;">
+<div aria-hidden="true" style="position: absolute; left: 0; top: 500px; width: 1920px; height: 580px; background: linear-gradient(180deg, rgb(var(--bg-rgb) / 0) 0%, var(--panel) 26%, var(--panel) 100%);"></div>
+
+<div style="position: absolute; left: 96px; top: 44px; height: 64px; padding: 0 28px 0 12px; display: flex; align-items: center; gap: 16px; border-radius: 32px; background: var(--panel);">
+  <span style="height: 44px; padding: 0 12px; display: flex; align-items: center; border-radius: 22px; background: var(--raised); font-size: 22px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums;">102</span>
+  <span style="font-size: 26px; font-weight: 700;">Arena Sport 2</span>
+  <span style="font-size: 24px; font-weight: 500; color: var(--muted);">Varsity Football · until 23:00</span>
+</div>
+
+<div style="position: absolute; right: 96px; top: 44px; height: 64px; padding: 0 12px 0 26px; display: flex; align-items: center; gap: 18px; border-radius: 32px; background: var(--panel);">
+  <span style="font-size: 30px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">21:40</span>
+  <span aria-hidden="true" style="width: 2px; height: 32px; background: var(--hairline);"></span>
+  <a href="{{self}}" style="height: 48px; padding: 0 20px 0 8px; display: flex; align-items: center; gap: 12px; border-radius: 24px; background: var(--raised); font-size: 22px;">
+    <span style="height: 34px; padding: 0 10px; display: flex; align-items: center; border-radius: 9px; border: 2px solid var(--chip-line); font-size: 16px; font-weight: 700; letter-spacing: 0.06em;">BACK</span>
+    <span style="font-weight: 500; color: var(--muted);">Last channel</span>
+    <span style="font-weight: 700;">412 Kino Classic</span>
+  </a>
+</div>
+
+<section aria-label="Switch channel" style="position: absolute; left: 96px; top: 690px; width: 1728px; display: flex; flex-direction: column; gap: 30px;">
+  <div style="display: flex; align-items: center; justify-content: space-between;">
+    <div role="tablist" aria-label="Channel lists" style="display: flex; align-items: center; gap: 44px;">
+      <button role="tab" aria-selected="true" style="padding: 0 0 10px; border: 0; border-bottom: 4px solid var(--accent); background: none; color: var(--text); font-size: 32px; font-weight: 700; letter-spacing: -0.01em; cursor: pointer;">Recently watched</button>
+      <a role="tab" aria-selected="false" href="{{toList}}" style="padding: 0 0 10px; border-bottom: 4px solid transparent; color: var(--muted); font-size: 32px; font-weight: 700; letter-spacing: -0.01em;">My Channels</a>
+      <a role="tab" aria-selected="false" href="{{toList}}" style="padding: 0 0 10px; border-bottom: 4px solid transparent; color: var(--muted); font-size: 32px; font-weight: 700; letter-spacing: -0.01em;">All channels</a>
+    </div>
+    <div style="display: flex; align-items: center; gap: 32px; font-size: 22px; font-weight: 600; color: var(--muted);">
+      <span style="display: flex; align-items: center; gap: 10px;"><span style="height: 38px; padding: 0 10px; display: flex; align-items: center; border-radius: 9px; border: 2px solid var(--chip-line); color: var(--text);">◀ ▶</span>browse</span>
+      <span style="display: flex; align-items: center; gap: 10px;"><span style="height: 38px; padding: 0 10px; display: flex; align-items: center; border-radius: 9px; border: 2px solid var(--chip-line); color: var(--text); font-size: 16px; font-weight: 700; letter-spacing: 0.06em;">OK</span>watch</span>
+      <span style="display: flex; align-items: center; gap: 10px;"><span style="height: 38px; padding: 0 10px; display: flex; align-items: center; border-radius: 9px; border: 2px solid var(--chip-line); color: var(--text);">▼</span>hide</span>
+    </div>
+  </div>
+  <div style="display: flex; gap: 30px; width: 2100px;">
+    <sc-for list="{{cards}}" as="c" hint-placeholder-count="6">
+      <a href="{{toLive}}" aria-label="{{c.label}}" style="flex: 0 0 auto; width: 312px; display: flex; flex-direction: column; gap: 14px;">
+        <span style="position: relative; display: flex; align-items: center; justify-content: center; width: 312px; height: 176px; border-radius: 20px; background: var(--plate); outline: {{c.ring}}; outline-offset: 0;">
+          <span style="position: absolute; left: 16px; top: 12px; font-size: 22px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums;">{{c.num}}</span>
+          <sc-if value="{{c.current}}" hint-placeholder-val="{{ false }}">
+            <span style="position: absolute; right: 14px; top: 12px; height: 32px; padding: 0 12px; display: flex; align-items: center; gap: 8px; border-radius: 16px; background: var(--raised); font-size: 16px; font-weight: 700; letter-spacing: 0.08em;"><span style="width: 10px; height: 10px; border-radius: 5px; background: var(--live);"></span>WATCHING</span>
+          </sc-if>
+          <span aria-hidden="true" style="display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--text);">
+            <span style="{{c.ls}}">{{c.l1}}</span>
+            <span style="{{c.l2s}}">{{c.l2}}</span>
+          </span>
+          <span aria-hidden="true" style="position: absolute; left: 16px; right: 16px; bottom: 14px; height: 6px; border-radius: 3px; background: var(--track);"><span style="display: block; width: {{c.pctW}}; height: 6px; border-radius: 3px; background: var(--accent);"></span></span>
+        </span>
+        <span style="display: flex; flex-direction: column; gap: 2px; padding: 0 4px;">
+          <span style="font-size: 28px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{c.name}}</span>
+          <span style="font-size: 24px; font-weight: 500; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{c.now}}</span>
+        </span>
+      </a>
+    </sc-for>
+  </div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var theme = (this.props.theme === 'light') ? 'light' : 'dark';
+    var sfx = theme === 'light' ? 'Light' : '';
+    var go = function (n) { return n + sfx + '.dc.html'; };
+    var LS = {
+      arena: [44, 'font-weight:700;letter-spacing:-0.02em'],
+      meridian: [32, 'font-weight:500;letter-spacing:0.18em;margin-right:-0.18em'],
+      wild: [46, 'font-weight:700;letter-spacing:-0.04em'],
+      kino: [42, 'font-weight:700;letter-spacing:0.3em;margin-right:-0.3em'],
+      atlas: [48, 'font-weight:600;letter-spacing:-0.02em'],
+      stage: [36, 'font-weight:500;letter-spacing:0.32em;margin-right:-0.32em']
+    };
+    var focus = 1;
+    var cards = [
+      { num: '102', name: 'Arena Sport 2', l1: 'ARENA', l2: 'SPORT 2', k: 'arena', now: 'Varsity Football', pct: 58 },
+      { num: '412', name: 'Kino Classic', l1: 'KINO', l2: 'CLASSIC', k: 'kino', now: 'The Long Road · until 22:45', pct: 30 },
+      { num: '340', name: 'Atlas Travel', l1: 'atlas', l2: 'TRAVEL', k: 'atlas', now: 'Northbound: The Fjords', pct: 70 },
+      { num: '515', name: 'Stage', l1: 'STAGE', l2: 'LIVE MUSIC', k: 'stage', now: 'Encore', pct: 45 },
+      { num: '306', name: 'Wildside Two', l1: 'wildside', l2: 'TWO', k: 'wild', now: 'Big Cats', pct: 12 },
+      { num: '201', name: 'Meridian News', l1: 'MERIDIAN', l2: 'NEWS', k: 'meridian', now: 'The Evening Briefing', pct: 40 }
+    ].map(function (c, i) {
+      var d = LS[c.k];
+      return Object.assign({}, c, {
+        ls: 'font-size:' + Math.round(d[0] * 1.05) + 'px;line-height:1;' + d[1],
+        l2s: 'font-size:17px;font-weight:700;letter-spacing:0.24em;margin-right:-0.24em;color:var(--muted);line-height:1',
+        pctW: c.pct + '%',
+        current: i === 0,
+        ring: i === focus ? '6px solid var(--focus)' : 'none',
+        label: c.num + ' ' + c.name + ', now: ' + c.now + (i === 0 ? ', watching now' : '')
+      });
+    });
+    return {
+      themeClass: theme,
+      cards: cards,
+      self: go('QuickSwitch'),
+      toLive: go('LiveBanner'),
+      toList: go('ChannelList')
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hinds TV · Audio and subtitles</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/f0f5bd0ad344d8eafbaee286c82a1a4e">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="hinds {{themeClass}}" style="position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #000000; color: var(--text); font-family: Manrope, system-ui, -apple-system, 'Segoe UI', sans-serif;">
+
+<img src="/_blob/12952017740668da418d9aa32c613466" alt="" style="position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; object-fit: cover; display: block;">
+<div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: var(--dim);"></div>
+
+<div role="dialog" aria-modal="true" aria-labelledby="trk-title" style="position: absolute; left: 320px; top: 170px; width: 1280px; box-sizing: border-box; padding: 52px 56px 48px; border-radius: 28px; background: var(--surface); display: flex; flex-direction: column;">
+  <div style="font-size: 22px; font-weight: 700; letter-spacing: 0.14em; color: var(--accent);">AUDIO &amp; SUBTITLES</div>
+  <h1 id="trk-title" style="margin: 10px 0 0; font-size: 44px; font-weight: 700; letter-spacing: -0.02em;">Kino Classic · The Long Road</h1>
+
+  <div style="margin-top: 34px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 48px;">
+    <div role="radiogroup" aria-label="Audio" style="display: flex; flex-direction: column; gap: 6px;">
+      <div style="padding: 0 0 10px 22px; font-size: 26px; font-weight: 700; color: var(--muted);">Audio</div>
+      <sc-for list="{{audio}}" as="o" hint-placeholder-count="4">
+        <button onClick="{{o.pick}}" role="radio" aria-checked="{{o.aria}}" style="height: 76px; padding: 0 24px 0 22px; display: flex; align-items: center; gap: 18px; border: 0; border-radius: 24px; background: {{o.bg}}; color: {{o.fg}}; font-size: 26px; font-weight: 600; text-align: left; cursor: pointer;">
+          <span aria-hidden="true" style="flex: 0 0 auto; width: 30px; height: 30px; box-sizing: border-box; border-radius: 15px; border: {{o.ring}}; display: flex; align-items: center; justify-content: center;"><span style="width: 14px; height: 14px; border-radius: 7px; background: {{o.dot}};"></span></span>
+          {{o.label}}
+        </button>
+      </sc-for>
+    </div>
+    <div role="radiogroup" aria-label="Subtitles" style="display: flex; flex-direction: column; gap: 6px;">
+      <div style="padding: 0 0 10px 22px; font-size: 26px; font-weight: 700; color: var(--muted);">Subtitles</div>
+      <sc-for list="{{subs}}" as="o" hint-placeholder-count="4">
+        <button onClick="{{o.pick}}" role="radio" aria-checked="{{o.aria}}" style="height: 76px; padding: 0 24px 0 22px; display: flex; align-items: center; gap: 18px; border: 0; border-radius: 24px; background: {{o.bg}}; color: {{o.fg}}; font-size: 26px; font-weight: 600; text-align: left; cursor: pointer;">
+          <span aria-hidden="true" style="flex: 0 0 auto; width: 30px; height: 30px; box-sizing: border-box; border-radius: 15px; border: {{o.ring}}; display: flex; align-items: center; justify-content: center;"><span style="width: 14px; height: 14px; border-radius: 7px; background: {{o.dot}};"></span></span>
+          {{o.label}}
+        </button>
+      </sc-for>
+    </div>
+  </div>
+
+  <p style="margin: 30px 0 0 22px; font-size: 22px; font-weight: 500; color: var(--muted);">The language you pick is used for the next channel or video too, when it has it.</p>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var self = this;
+    var theme = (this.props.theme === 'light') ? 'light' : 'dark';
+    var st = this.state || {};
+    var a = st.a != null ? st.a : 0;
+    var s = st.s != null ? st.s : 0;
+    var focusCol = 'subs';
+    var focusRow = 1;
+    var build = function (labels, picked, col, key) {
+      return labels.map(function (label, i) {
+        var on = col === focusCol && i === focusRow;
+        var sel = i === picked;
+        return {
+          label: label,
+          aria: sel ? 'true' : 'false',
+          bg: on ? 'var(--focus)' : 'transparent',
+          fg: on ? 'var(--on-focus)' : 'var(--text)',
+          ring: sel ? (on ? '3px solid var(--on-focus)' : '3px solid var(--accent)') : (on ? '3px solid var(--on-focus)' : '3px solid var(--chip-line)'),
+          dot: sel ? (on ? 'var(--on-focus)' : 'var(--accent)') : 'transparent',
+          pick: function () { var o = {}; o[key] = i; self.setState(o); }
+        };
+      });
+    };
+    return {
+      themeClass: theme,
+      audio: build(['English · 5.1 · Dolby Digital', 'English · Stereo · AAC', 'Français · Stereo · AAC', 'Deutsch · Stereo · MP2'], a, 'audio', 'a'),
+      subs: build(['Off', 'English', 'English · hard of hearing', 'Français'], s, 'subs', 's')
+    };
+  }
+}
+</script>
+</body>
+</html>

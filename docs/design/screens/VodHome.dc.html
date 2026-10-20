@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hinds TV · VOD for you</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/f0f5bd0ad344d8eafbaee286c82a1a4e">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="hinds {{themeClass}}" style="position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); color: var(--text); font-family: Manrope, system-ui, -apple-system, 'Segoe UI', sans-serif;">
+
+<img src="/_blob/ece3ea2ede18e1350b3a3cec80aa33a0" alt="" style="position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; object-fit: cover; display: block;">
+<div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: linear-gradient(90deg, rgb(var(--bg-rgb) / 0.9) 0%, rgb(var(--bg-rgb) / 0.62) 36%, rgb(var(--bg-rgb) / 0) 58%);"></div>
+<div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: linear-gradient(0deg, rgb(var(--bg-rgb) / 1) 0%, rgb(var(--bg-rgb) / 0.94) 38%, rgb(var(--bg-rgb) / 0) 60%);"></div>
+<div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 1920px; height: 200px; background: linear-gradient(180deg, rgb(var(--bg-rgb) / 0.6) 0%, rgb(var(--bg-rgb) / 0) 100%);"></div>
+
+<header style="position: absolute; left: 96px; top: 44px; height: 68px; display: flex; align-items: baseline; gap: 16px;">
+  <span style="font-size: 44px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">21:40</span>
+  <span style="font-size: 24px; font-weight: 500; color: var(--muted);">Tue 20 Oct</span>
+</header>
+<nav aria-label="Sections" style="position: absolute; left: 960px; top: 40px; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 6px; border-radius: 40px; background: var(--surface);">
+  <sc-for list="{{nav}}" as="n" hint-placeholder-count="7">
+    <a href="{{n.href}}" aria-current="{{n.cur}}" style="height: 56px; padding: 0 28px; display: flex; align-items: center; border-radius: 28px; background: {{n.bg}}; color: {{n.color}}; font-size: 26px; font-weight: 700; white-space: nowrap;">{{n.label}}</a>
+  </sc-for>
+</nav>
+<a href="{{toLibrary}}" style="position: absolute; right: 96px; top: 46px; height: 60px; padding: 0 26px; display: flex; align-items: center; gap: 12px; border-radius: 30px; background: var(--chip); font-size: 24px; font-weight: 700;">
+  Browse all VOD
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+</a>
+
+<section aria-label="Top pick" style="position: absolute; left: 96px; top: 168px; width: 920px; display: flex; flex-direction: column;">
+  <div style="font-size: 22px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent);">New in Series</div>
+  <h1 style="margin: 12px 0 0; font-size: 104px; line-height: 0.96; font-weight: 700; letter-spacing: -0.035em;">Unseen</h1>
+  <div style="margin-top: 22px; display: flex; align-items: center; gap: 14px; font-size: 26px; font-weight: 500; color: var(--muted);">
+    <span>Mystery</span>
+    <span aria-hidden="true">·</span>
+    <span>2026</span>
+    <span aria-hidden="true">·</span>
+    <span>8 episodes</span>
+    <span style="margin-left: 10px; border: 2px solid var(--chip-line); border-radius: 8px; padding: 0 10px; font-size: 20px; font-weight: 700; letter-spacing: 0.04em; color: var(--text);">4K</span>
+  </div>
+  <p style="margin: 20px 0 0; max-width: 780px; font-size: 28px; line-height: 1.45; font-weight: 500; color: var(--muted); text-wrap: pretty;">A translator wakes with no memory of the last three days, and a note in her own handwriting that says only: don’t look.</p>
+  <div style="margin-top: 34px; display: flex; align-items: center; gap: 16px;">
+    <a href="{{toPlayer}}" style="height: 72px; padding: 0 40px 0 32px; display: flex; align-items: center; gap: 14px; border-radius: 36px; background: var(--focus); color: var(--on-focus); font-size: 28px; font-weight: 700;">
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.6v14.8a1 1 0 0 0 1.52.85l12.1-7.4a1 1 0 0 0 0-1.7L8.52 3.75A1 1 0 0 0 7 4.6z" fill="currentColor"></path></svg>
+      Play episode 1
+    </a>
+    <a href="{{toDetails}}" style="height: 72px; padding: 0 36px; display: flex; align-items: center; border-radius: 36px; background: var(--chip); font-size: 28px; font-weight: 700;">Episodes</a>
+  </div>
+</section>
+
+<section aria-label="Continue watching" style="position: absolute; left: 96px; top: 640px; width: 1728px; display: flex; flex-direction: column; gap: 20px;">
+  <div style="display: flex; align-items: baseline; justify-content: space-between;">
+    <h2 style="margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.01em;">Continue watching</h2>
+    <span style="font-size: 24px; font-weight: 500; color: var(--muted);">Picks up where you stopped</span>
+  </div>
+  <div style="display: flex; gap: 32px;">
+    <sc-for list="{{cont}}" as="v" hint-placeholder-count="4">
+      <a href="{{toPlayer}}" aria-label="{{v.label}}" style="flex: 0 0 auto; width: 408px; display: flex; flex-direction: column; gap: 12px;">
+        <span style="position: relative; display: block; width: 408px; height: 230px; border-radius: 20px; overflow: hidden; background: var(--raised);">
+          <img src="{{v.img}}" alt="" style="width: 408px; height: 230px; object-fit: cover; display: block;">
+          <sc-if value="{{v.badge}}" hint-placeholder-val="{{ false }}">
+            <span style="position: absolute; left: 14px; top: 14px; height: 34px; padding: 0 12px; display: flex; align-items: center; border-radius: 17px; background: rgb(11 11 13 / 0.8); color: #F5F5F7; font-size: 18px; font-weight: 700; letter-spacing: 0.06em;">{{v.badge}}</span>
+          </sc-if>
+          <span aria-hidden="true" style="position: absolute; left: 16px; right: 16px; bottom: 14px; height: 6px; border-radius: 3px; background: rgb(255 255 255 / 0.35);"><span style="display: block; width: {{v.pctW}}; height: 6px; border-radius: 3px; background: var(--accent);"></span></span>
+        </span>
+        <span style="display: flex; flex-direction: column; gap: 2px; padding: 0 4px;">
+          <span style="font-size: 28px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{v.title}}</span>
+          <span style="font-size: 24px; font-weight: 500; color: var(--muted);">{{v.meta}}</span>
+        </span>
+      </a>
+    </sc-for>
+  </div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var theme = (this.props.theme === 'light') ? 'light' : 'dark';
+    var sfx = theme === 'light' ? 'Light' : '';
+    var go = function (n) { return n + sfx + '.dc.html'; };
+    var NAV = [['Home', 'Home'], ['Live', 'ChannelList'], ['Guide', 'Guide'], ['VOD', 'VodHome'], ['Radio', 'Radio'], ['Search', 'Search'], ['Settings', 'SettingsAppearance']];
+    var nav = NAV.map(function (n) {
+      var on = n[0] === 'VOD';
+      return { label: n[0], href: go(n[1]), cur: on ? 'page' : 'false', bg: on ? 'var(--hairline)' : 'transparent', color: on ? 'var(--text)' : 'var(--muted)' };
+    });
+    var v = function (title, meta, pct, img, badge) {
+      return { title: title, meta: meta, pctW: pct + '%', img: img, badge: badge || '', label: title + ', ' + meta };
+    };
+    return {
+      themeClass: theme,
+      nav: nav,
+      toPlayer: go('VodPlayer'),
+      toDetails: go('VodDetails'),
+      toLibrary: go('VodLibrary'),
+      cont: [
+        v('Low Tide', '48m left', 58, '/_blob/7eb606db91527d258905a86b086fcf37'),
+        v('Night Shift', 'Episode 4 · 18m left', 62, '/_blob/863bd6a75909b42152338deae7903698', 'S2 · E4'),
+        v('Saltwater', '1h 12m left', 22, '/_blob/0b502d278e5b9f84c6276bd916363ac4'),
+        v('Northbound', 'Episode 3 · 22m left', 40, '/_blob/0e5dbda17aa7889df6993624994b6733', 'E3')
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

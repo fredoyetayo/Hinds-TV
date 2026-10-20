@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hinds TV · TV guide</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/f0f5bd0ad344d8eafbaee286c82a1a4e">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="hinds {{themeClass}}" style="position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #000000; color: var(--text); font-family: Manrope, system-ui, -apple-system, 'Segoe UI', sans-serif;">
+
+<img src="/_blob/fd1bca32c150fd9bf6b9ddf267f09c93" alt="" style="position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; object-fit: cover; display: block;">
+<div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: var(--panel);"></div>
+
+<nav aria-label="Sections" style="position: absolute; left: 96px; top: 40px; display: flex; align-items: center; gap: 4px; padding: 6px; border-radius: 40px; background: var(--surface);">
+  <sc-for list="{{nav}}" as="n" hint-placeholder-count="7">
+    <a href="{{n.href}}" aria-current="{{n.cur}}" style="height: 56px; padding: 0 28px; display: flex; align-items: center; border-radius: 28px; background: {{n.bg}}; color: {{n.color}}; font-size: 26px; font-weight: 700; white-space: nowrap;">{{n.label}}</a>
+  </sc-for>
+</nav>
+<div style="position: absolute; right: 96px; top: 46px; display: flex; align-items: baseline; gap: 16px;">
+  <span style="font-size: 24px; font-weight: 500; color: var(--muted);">Tue 20 Oct</span>
+  <span style="font-size: 44px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">21:40</span>
+</div>
+
+<section aria-label="Selected programme" style="position: absolute; left: 96px; top: 146px; width: 1320px; display: flex; flex-direction: column; gap: 10px;">
+  <div style="display: flex; align-items: center; gap: 14px; font-size: 24px; font-weight: 700; color: var(--muted);">
+    <span style="height: 40px; padding: 0 10px; display: flex; align-items: center; border-radius: 10px; border: 2px solid var(--chip-line); font-size: 20px;">⏪</span>
+    <span style="color: var(--text);"><span style="color: var(--accent);">★</span> My Channels</span>
+    <span style="height: 40px; padding: 0 10px; display: flex; align-items: center; border-radius: 10px; border: 2px solid var(--chip-line); font-size: 20px;">⏩</span>
+  </div>
+  <h1 style="margin: 6px 0 0; font-size: 56px; line-height: 1.05; font-weight: 700; letter-spacing: -0.025em;">Ocean Giants</h1>
+  <div style="font-size: 26px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums;">305 Wildside · 21:00 – 22:00 · Documentary</div>
+  <p style="margin: 2px 0 0; max-width: 1180px; font-size: 26px; line-height: 1.45; font-weight: 500; color: var(--muted); text-wrap: pretty;">A year in the open ocean, following the drifting giants most of us will never see.</p>
+</section>
+
+<section aria-label="Guide" style="position: absolute; left: 96px; top: 392px; width: 1728px; height: 620px;">
+  <div aria-hidden="true" style="position: absolute; left: 400px; top: 0; width: 1328px; height: 40px; font-size: 22px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums;">
+    <span style="position: absolute; left: 0; top: 0;">21:00</span>
+    <span style="position: absolute; left: 332px; top: 0;">21:30</span>
+    <span style="position: absolute; left: 664px; top: 0;">22:00</span>
+    <span style="position: absolute; left: 996px; top: 0;">22:30</span>
+  </div>
+  <div style="position: absolute; left: 0; top: 52px; width: 1728px; display: flex; flex-direction: column; gap: 8px;">
+    <sc-for list="{{rows}}" as="r" hint-placeholder-count="6">
+      <div style="position: relative; height: 84px; display: flex;">
+        <a href="{{toLive}}" style="flex: 0 0 auto; width: 384px; height: 84px; display: flex; align-items: center; gap: 16px; padding: 0 12px; box-sizing: border-box; border-radius: 16px; background: var(--surface);">
+          <span aria-hidden="true" style="width: 104px; height: 60px; border-radius: 10px; background: var(--raised); color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;">
+            <span style="{{r.ls}}">{{r.l1}}</span>
+            <span style="font-size: 8px; font-weight: 700; letter-spacing: 0.2em; margin-right: -0.2em; color: var(--muted); line-height: 1;">{{r.l2}}</span>
+          </span>
+          <span style="font-size: 22px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums;">{{r.num}}</span>
+          <span style="font-size: 26px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{r.name}}</span>
+        </a>
+        <div style="position: relative; margin-left: 16px; width: 1328px; height: 84px;">
+          <sc-for list="{{r.cells}}" as="p" hint-placeholder-count="2">
+            <a href="{{toLive}}" aria-label="{{p.label}}" style="position: absolute; top: 0; left: {{p.left}}; width: {{p.width}}; height: 84px; box-sizing: border-box; padding: 0 20px; display: flex; flex-direction: column; justify-content: center; gap: 4px; border-radius: 16px; background: {{p.bg}}; color: {{p.fg}}; overflow: hidden;">
+              <span style="font-size: 26px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{p.title}}</span>
+              <span style="font-size: 22px; font-weight: 600; color: {{p.sub}}; white-space: nowrap; font-variant-numeric: tabular-nums;">{{p.time}}</span>
+            </a>
+          </sc-for>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+  <div aria-hidden="true" style="position: absolute; left: 843px; top: 36px; width: 3px; height: 560px; background: var(--accent);"></div>
+  <span aria-hidden="true" style="position: absolute; left: 806px; top: 0; height: 36px; padding: 0 10px; display: flex; align-items: center; border-radius: 18px; background: var(--accent); color: var(--on-accent); font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums;">21:40</span>
+</section>
+
+<div style="position: absolute; left: 96px; top: 1028px; width: 1728px; display: flex; gap: 32px; font-size: 22px; font-weight: 600; color: var(--muted);">
+  <span>▲▼ channels</span>
+  <span>◀▶ programmes</span>
+  <span>⏪⏩ change group</span>
+  <span>⏯ back to now</span>
+  <span>Select · watch</span>
+  <span>☰ favourites</span>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var theme = (this.props.theme === 'light') ? 'light' : 'dark';
+    var sfx = theme === 'light' ? 'Light' : '';
+    var go = function (n) { return n + sfx + '.dc.html'; };
+    var NAV = [['Home', 'Home'], ['Live', 'ChannelList'], ['Guide', 'Guide'], ['VOD', 'VodHome'], ['Radio', 'Radio'], ['Search', 'Search'], ['Settings', 'SettingsAppearance']];
+    var nav = NAV.map(function (n) {
+      var on = n[0] === 'Guide';
+      return { label: n[0], href: go(n[1]), cur: on ? 'page' : 'false', bg: on ? 'var(--hairline)' : 'transparent', color: on ? 'var(--text)' : 'var(--muted)' };
+    });
+    var PX = 1328 / 120;
+    var NOW = 40;
+    var LS = {
+      arena: [44, 'font-weight:700;letter-spacing:-0.02em'],
+      meridian: [32, 'font-weight:500;letter-spacing:0.18em;margin-right:-0.18em'],
+      wild: [46, 'font-weight:700;letter-spacing:-0.04em'],
+      pulse: [50, 'font-weight:700;letter-spacing:-0.05em'],
+      savour: [46, "font-family:Georgia,'Times New Roman',serif;font-style:italic;font-weight:400"],
+      circuit: [34, 'font-weight:700;letter-spacing:0.14em;margin-right:-0.14em']
+    };
+    var row = function (num, name, l1, l2, k, cells, focusIndex) {
+      var d = LS[k];
+      return {
+        num: num, name: name, l1: l1, l2: l2,
+        ls: 'font-size:' + Math.round(d[0] * 0.36) + 'px;line-height:1;' + d[1],
+        cells: cells.map(function (c, i) {
+          var focused = i === focusIndex;
+          var onNow = c[1] <= NOW && c[2] > NOW;
+          return {
+            title: c[0], time: c[3],
+            left: Math.round(c[1] * PX) + 'px',
+            width: Math.round((c[2] - c[1]) * PX - 8) + 'px',
+            bg: focused ? 'var(--focus)' : (onNow ? 'var(--raised)' : 'var(--surface)'),
+            fg: focused ? 'var(--on-focus)' : 'var(--text)',
+            sub: focused ? 'var(--on-focus)' : 'var(--muted)',
+            label: c[0] + ', ' + c[3] + ', on ' + name
+          };
+        })
+      };
+    };
+    return {
+      themeClass: theme,
+      nav: nav,
+      toLive: go('LiveBanner'),
+      rows: [
+        row('101', 'Arena Sport 1', 'ARENA', 'SPORT 1', 'arena', [['Matchday Live', 0, 60, '20:00 – 22:00'], ['Final Whistle', 60, 120, '22:00 – 23:00']], -1),
+        row('201', 'Meridian News', 'MERIDIAN', 'NEWS', 'meridian', [['The Evening Briefing', 0, 60, '21:00 – 22:00'], ['World Tonight', 60, 90, '22:00'], ['Late Edition', 90, 120, '22:30']], -1),
+        row('305', 'Wildside', 'wildside', 'NATURE', 'wild', [['Ocean Giants', 0, 60, '21:00 – 22:00'], ['Reef After Dark', 60, 120, '22:00 – 23:00']], 0),
+        row('512', 'Pulse', 'pulse', 'MUSIC', 'pulse', [['Live Sessions', 0, 60, '20:00 – 22:00'], ['Chart Rewind', 60, 120, '22:00 – 23:30']], -1),
+        row('620', 'Savour', 'Savour', 'FOOD', 'savour', [['Supper Club', 0, 30, '20:30'], ['Street Food Nights', 30, 90, '21:30 – 22:30'], ['Sweet Things', 90, 120, '22:30']], -1),
+        row('118', 'Circuit', 'CIRCUIT', 'MOTORSPORT', 'circuit', [['Night Qualifying', 0, 90, '21:00 – 22:30'], ['Pit Lane', 90, 120, '22:30']], -1)
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hinds TV · Channel list</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/f0f5bd0ad344d8eafbaee286c82a1a4e">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="hinds {{themeClass}}" style="position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #000000; color: var(--text); font-family: Manrope, system-ui, -apple-system, 'Segoe UI', sans-serif;">
+
+<img src="/_blob/fd1bca32c150fd9bf6b9ddf267f09c93" alt="Live picture behind the list" style="position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; object-fit: cover; display: block;">
+<div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 1640px; height: 1080px; background: var(--panel);"></div>
+<div aria-hidden="true" style="position: absolute; left: 1640px; top: 0; width: 128px; height: 1080px; background: linear-gradient(90deg, var(--panel) 0%, rgb(var(--bg-rgb) / 0) 100%);"></div>
+
+<nav aria-label="Sections" style="position: absolute; left: 56px; top: 40px; display: flex; align-items: center; gap: 4px; padding: 6px; border-radius: 40px; background: var(--surface);">
+  <sc-for list="{{nav}}" as="n" hint-placeholder-count="7">
+    <a href="{{n.href}}" aria-current="{{n.cur}}" style="height: 56px; padding: 0 28px; display: flex; align-items: center; border-radius: 28px; background: {{n.bg}}; color: {{n.color}}; font-size: 26px; font-weight: 700; white-space: nowrap;">{{n.label}}</a>
+  </sc-for>
+</nav>
+
+<span style="position: absolute; right: 96px; top: 44px; height: 60px; padding: 0 24px; display: flex; align-items: center; border-radius: 30px; background: var(--panel); font-size: 34px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">21:40</span>
+
+<aside aria-label="Groups" style="position: absolute; left: 56px; top: 150px; width: 520px; height: 900px; display: flex; flex-direction: column;">
+  <div style="padding: 0 24px 12px; font-size: 22px; font-weight: 700; letter-spacing: 0.14em; color: var(--faint);">GROUPS</div>
+  <div style="display: flex; flex-direction: column; gap: 4px;">
+    <a href="{{toRecent}}" style="height: 64px; padding: 0 24px; display: flex; align-items: center; gap: 14px; border-radius: 24px; font-size: 26px; font-weight: 600; color: var(--text);">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7"></path><path d="M4 4v4.5h4.5"></path><path d="M12 8v4.5l3 2"></path></svg>
+      Recently watched
+    </a>
+    <a href="{{self}}" style="height: 64px; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; border-radius: 24px; font-size: 26px; font-weight: 600;"><span><span style="color: var(--accent);">★</span>  My Channels</span><span style="font-size: 22px; color: var(--muted);">12</span></a>
+    <a href="{{self}}" style="height: 64px; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; border-radius: 24px; font-size: 26px; font-weight: 600;"><span><span style="color: var(--accent);">★</span>  Sport</span><span style="font-size: 22px; color: var(--muted);">8</span></a>
+    <a href="{{self}}" style="height: 64px; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; border-radius: 24px; font-size: 26px; font-weight: 600;"><span><span style="color: var(--accent);">★</span>  Kids</span><span style="font-size: 22px; color: var(--muted);">5</span></a>
+    <span aria-hidden="true" style="display: block; height: 2px; margin: 10px 24px; background: var(--hairline);"></span>
+    <a href="{{self}}" aria-current="true" style="height: 64px; padding: 0 24px; display: flex; align-items: center; justify-content: space-between; border-radius: 24px; background: var(--raised); color: var(--accent); font-size: 26px; font-weight: 700;"><span>All channels</span><span style="font-size: 22px; font-weight: 600;">10,000+</span></a>
+    <a href="{{self}}" style="height: 64px; padding: 0 24px; display: flex; align-items: center; border-radius: 24px; font-size: 26px; font-weight: 600;">UK Entertainment</a>
+    <a href="{{self}}" style="height: 64px; padding: 0 24px; display: flex; align-items: center; border-radius: 24px; font-size: 26px; font-weight: 600;">UK Sport</a>
+    <a href="{{self}}" style="height: 64px; padding: 0 24px; display: flex; align-items: center; border-radius: 24px; font-size: 26px; font-weight: 600;">News</a>
+    <a href="{{self}}" style="height: 64px; padding: 0 24px; display: flex; align-items: center; border-radius: 24px; font-size: 26px; font-weight: 600;">Documentary</a>
+    <a href="{{self}}" style="height: 64px; padding: 0 24px; display: flex; align-items: center; border-radius: 24px; font-size: 26px; font-weight: 600;">Films</a>
+    <a href="{{self}}" style="height: 64px; padding: 0 24px; display: flex; align-items: center; border-radius: 24px; font-size: 26px; font-weight: 600;">Africa</a>
+  </div>
+  <a href="{{self}}" style="margin-top: auto; height: 64px; padding: 0 24px; display: flex; align-items: center; gap: 12px; border-radius: 24px; font-size: 24px; font-weight: 600; color: var(--muted);">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7"></path><path d="M20 4v4.5h-4.5"></path></svg>
+    Refresh channels
+  </a>
+</aside>
+
+<section aria-label="All channels" style="position: absolute; left: 600px; top: 150px; width: 1000px; display: flex; flex-direction: column;">
+  <div style="height: 56px; padding: 0 24px; display: flex; align-items: baseline; gap: 18px;">
+    <h1 style="margin: 0; font-size: 44px; font-weight: 700; letter-spacing: -0.02em;">All channels</h1>
+    <span style="font-size: 24px; font-weight: 500; color: var(--muted);">10,000+ channels</span>
+  </div>
+  <div style="margin-top: 18px; display: flex; flex-direction: column; gap: 4px;">
+    <sc-for list="{{rows}}" as="c" hint-placeholder-count="8">
+      <a href="{{toLive}}" aria-label="{{c.label}}" style="height: 92px; padding: 0 24px 0 14px; display: grid; grid-template-columns: 120px 76px minmax(0, 1fr) 300px 36px; align-items: center; column-gap: 18px; border-radius: 24px; background: {{c.bg}}; color: {{c.fg}};">
+        <span aria-hidden="true" style="width: 120px; height: 68px; border-radius: 12px; background: var(--plate); color: var(--text); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;">
+          <span style="{{c.ls}}">{{c.l1}}</span>
+          <span style="{{c.l2s}}">{{c.l2}}</span>
+        </span>
+        <span style="font-size: 26px; font-weight: 700; color: {{c.numColor}}; font-variant-numeric: tabular-nums;">{{c.num}}</span>
+        <span style="display: flex; align-items: baseline; gap: 14px; min-width: 0;">
+          <span style="font-size: 30px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{c.name}}</span>
+          <sc-if value="{{c.playing}}" hint-placeholder-val="{{ false }}">
+            <span style="flex: 0 0 auto; font-size: 20px; font-weight: 700; letter-spacing: 0.08em; color: {{c.numColor}};">WATCHING</span>
+          </sc-if>
+        </span>
+        <span style="display: flex; flex-direction: column; gap: 8px; min-width: 0;">
+          <span style="font-size: 24px; font-weight: 500; color: {{c.sub}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{c.now}}</span>
+          <span aria-hidden="true" style="display: block; width: 260px; height: 5px; border-radius: 3px; background: {{c.track}};"><span style="display: block; width: {{c.pctW}}; height: 5px; border-radius: 3px; background: {{c.fill}};"></span></span>
+        </span>
+        <span style="display: flex; justify-content: flex-end; font-size: 30px; color: {{c.star}};">{{c.starChar}}</span>
+      </a>
+    </sc-for>
+  </div>
+  <div style="margin-top: 18px; padding: 0 24px; display: flex; gap: 32px; font-size: 22px; font-weight: 600; color: var(--muted);">
+    <span>Select · watch</span>
+    <span>☰ add to a list</span>
+    <span>⏪ ⏩ jump 10</span>
+    <span>Back · sections, then close</span>
+  </div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var theme = (this.props.theme === 'light') ? 'light' : 'dark';
+    var sfx = theme === 'light' ? 'Light' : '';
+    var go = function (n) { return n + sfx + '.dc.html'; };
+    var NAV = [['Home', 'Home'], ['Live', 'ChannelList'], ['Guide', 'Guide'], ['VOD', 'VodHome'], ['Radio', 'Radio'], ['Search', 'Search'], ['Settings', 'SettingsAppearance']];
+    var nav = NAV.map(function (n) {
+      var on = n[0] === 'Live';
+      return { label: n[0], href: go(n[1]), cur: on ? 'page' : 'false', bg: on ? 'var(--hairline)' : 'transparent', color: on ? 'var(--text)' : 'var(--muted)' };
+    });
+    var LS = {
+      arena: [44, 'font-weight:700;letter-spacing:-0.02em'],
+      meridian: [32, 'font-weight:500;letter-spacing:0.18em;margin-right:-0.18em'],
+      wild: [46, 'font-weight:700;letter-spacing:-0.04em'],
+      circuit: [34, 'font-weight:700;letter-spacing:0.14em;margin-right:-0.14em'],
+      atlas: [48, 'font-weight:600;letter-spacing:-0.02em']
+    };
+    var focus = 3;
+    var playing = 1;
+    var rows = [
+      { num: '101', name: 'Arena Sport 1', l1: 'ARENA', l2: 'SPORT 1', k: 'arena', now: 'Matchday Live', pct: 64, fav: true },
+      { num: '102', name: 'Arena Sport 2', l1: 'ARENA', l2: 'SPORT 2', k: 'arena', now: 'Varsity Football', pct: 58, fav: false },
+      { num: '118', name: 'Circuit', l1: 'CIRCUIT', l2: 'MOTORSPORT', k: 'circuit', now: 'Night Qualifying', pct: 35, fav: true },
+      { num: '201', name: 'Meridian News', l1: 'MERIDIAN', l2: 'NEWS', k: 'meridian', now: 'The Evening Briefing', pct: 40, fav: true },
+      { num: '204', name: 'Meridian Business', l1: 'MERIDIAN', l2: 'BUSINESS', k: 'meridian', now: 'Markets Tonight', pct: 30, fav: false },
+      { num: '305', name: 'Wildside', l1: 'wildside', l2: 'NATURE', k: 'wild', now: 'Ocean Giants', pct: 22, fav: true },
+      { num: '306', name: 'Wildside Two', l1: 'wildside', l2: 'TWO', k: 'wild', now: 'Big Cats', pct: 12, fav: false },
+      { num: '340', name: 'Atlas Travel', l1: 'atlas', l2: 'TRAVEL', k: 'atlas', now: 'Northbound: The Fjords', pct: 70, fav: false }
+    ].map(function (c, i) {
+      var on = i === focus;
+      var d = LS[c.k];
+      return Object.assign({}, c, {
+        ls: 'font-size:' + Math.round(d[0] * 0.42) + 'px;line-height:1;' + d[1],
+        l2s: 'font-size:9px;font-weight:700;letter-spacing:0.2em;margin-right:-0.2em;color:var(--muted);line-height:1',
+        pctW: c.pct + '%',
+        playing: i === playing,
+        label: c.num + ' ' + c.name + ', now: ' + c.now + (c.fav ? ', in My Channels' : '') + (i === playing ? ', watching' : ''),
+        bg: on ? 'var(--focus)' : 'transparent',
+        fg: on ? 'var(--on-focus)' : 'var(--text)',
+        numColor: on ? 'var(--on-focus)' : (i === playing ? 'var(--accent)' : 'var(--muted)'),
+        sub: on ? 'var(--on-focus)' : 'var(--muted)',
+        track: on ? 'rgb(128 128 128 / 0.35)' : 'var(--track)',
+        fill: on ? 'var(--on-focus)' : 'var(--accent)',
+        star: on ? 'var(--on-focus)' : 'var(--accent)',
+        starChar: c.fav ? '★' : ''
+      });
+    });
+    return {
+      themeClass: theme,
+      nav: nav,
+      rows: rows,
+      self: go('ChannelList'),
+      toLive: go('LiveBanner'),
+      toRecent: go('QuickSwitch')
+    };
+  }
+}
+</script>
+</body>
+</html>

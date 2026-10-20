@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hinds TV · Search</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/f0f5bd0ad344d8eafbaee286c82a1a4e">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="hinds {{themeClass}}" style="position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); color: var(--text); font-family: Manrope, system-ui, -apple-system, 'Segoe UI', sans-serif;">
+
+<header style="position: absolute; left: 96px; top: 44px; height: 68px; display: flex; align-items: baseline; gap: 16px;">
+  <span style="font-size: 44px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">21:40</span>
+  <span style="font-size: 24px; font-weight: 500; color: var(--muted);">Tue 20 Oct</span>
+</header>
+<nav aria-label="Sections" style="position: absolute; left: 960px; top: 40px; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 6px; border-radius: 40px; background: var(--surface);">
+  <sc-for list="{{nav}}" as="n" hint-placeholder-count="7">
+    <a href="{{n.href}}" aria-current="{{n.cur}}" style="height: 56px; padding: 0 28px; display: flex; align-items: center; border-radius: 28px; background: {{n.bg}}; color: {{n.color}}; font-size: 26px; font-weight: 700; white-space: nowrap;">{{n.label}}</a>
+  </sc-for>
+</nav>
+
+<div style="position: absolute; left: 96px; top: 148px; width: 1728px; height: 88px; display: flex; align-items: center; gap: 16px;">
+  <button aria-label="Search channels, programmes, VOD and radio" style="flex: 1 1 auto; height: 88px; padding: 0 32px; display: flex; align-items: center; gap: 18px; border: 0; border-radius: 44px; background: var(--surface); text-align: left; cursor: pointer;">
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="color: var(--muted);"><circle cx="11" cy="11" r="6.5"></circle><path d="M20 20l-4.2-4.2"></path></svg>
+    <span style="font-size: 34px; font-weight: 700;">ocean</span>
+    <span aria-hidden="true" style="width: 3px; height: 40px; background: var(--accent);"></span>
+    <span style="margin-left: auto; font-size: 24px; font-weight: 500; color: var(--faint);">Channels, programmes, VOD, radio</span>
+  </button>
+  <button style="flex: 0 0 auto; height: 72px; padding: 0 32px; border: 0; border-radius: 36px; background: var(--chip); font-size: 26px; font-weight: 700; cursor: pointer;">Clear</button>
+</div>
+
+<div style="position: absolute; left: 96px; top: 284px; width: 1728px; display: flex; gap: 64px;">
+  <section aria-label="Channels" style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 16px;">
+    <h2 style="margin: 0; font-size: 28px; font-weight: 700;">Channels <span style="font-weight: 600; color: var(--muted);">2</span></h2>
+    <div style="display: flex; gap: 20px;">
+      <sc-for list="{{channels}}" as="c" hint-placeholder-count="2">
+        <a href="{{toLive}}" style="width: 420px; height: 104px; padding: 0 24px 0 16px; box-sizing: border-box; display: flex; align-items: center; gap: 18px; border-radius: 24px; background: {{c.bg}}; color: {{c.fg}};">
+          <span aria-hidden="true" style="flex: 0 0 auto; width: 120px; height: 68px; border-radius: 12px; background: var(--raised); color: var(--text); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; letter-spacing: 0.06em;">{{c.mark}}</span>
+          <span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+            <span style="font-size: 28px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{c.name}}</span>
+            <span style="font-size: 22px; font-weight: 600; color: {{c.sub}}; font-variant-numeric: tabular-nums;">{{c.meta}}</span>
+          </span>
+        </a>
+      </sc-for>
+    </div>
+  </section>
+  <section aria-label="Radio" style="flex: 0 0 auto; display: flex; flex-direction: column; gap: 16px;">
+    <h2 style="margin: 0; font-size: 28px; font-weight: 700;">Radio <span style="font-weight: 600; color: var(--muted);">1</span></h2>
+    <a href="{{toRadio}}" style="width: 420px; height: 104px; padding: 0 24px 0 16px; box-sizing: border-box; display: flex; align-items: center; gap: 18px; border-radius: 24px; background: var(--surface);">
+      <span aria-hidden="true" style="flex: 0 0 auto; width: 68px; height: 68px; border-radius: 14px; background: var(--raised); display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700;">OF</span>
+      <span style="display: flex; flex-direction: column; gap: 2px;">
+        <span style="font-size: 28px; font-weight: 700;">Ocean FM</span>
+        <span style="font-size: 22px; font-weight: 600; color: var(--muted);">532 · Radio</span>
+      </span>
+    </a>
+  </section>
+</div>
+
+<section aria-label="On TV" style="position: absolute; left: 96px; top: 476px; width: 1728px; display: flex; flex-direction: column; gap: 16px;">
+  <h2 style="margin: 0; font-size: 28px; font-weight: 700;">On TV <span style="font-weight: 600; color: var(--muted);">3</span></h2>
+  <div style="display: flex; gap: 20px;">
+    <sc-for list="{{progs}}" as="p" hint-placeholder-count="3">
+      <a href="{{toGuide}}" style="width: 560px; height: 104px; padding: 0 24px; box-sizing: border-box; display: flex; align-items: center; gap: 20px; border-radius: 24px; background: var(--surface);">
+        <span style="flex: 0 0 auto; height: 40px; padding: 0 14px; display: flex; align-items: center; border-radius: 20px; background: {{p.badgeBg}}; color: {{p.badgeFg}}; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums;">{{p.when}}</span>
+        <span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+          <span style="font-size: 28px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{p.title}}</span>
+          <span style="font-size: 22px; font-weight: 600; color: var(--muted); white-space: nowrap;">{{p.channel}}</span>
+        </span>
+      </a>
+    </sc-for>
+  </div>
+</section>
+
+<section aria-label="VOD" style="position: absolute; left: 96px; top: 668px; width: 1728px; display: flex; flex-direction: column; gap: 16px;">
+  <h2 style="margin: 0; font-size: 28px; font-weight: 700;">VOD <span style="font-weight: 600; color: var(--muted);">3</span></h2>
+  <div style="display: flex; gap: 32px;">
+    <sc-for list="{{vod}}" as="v" hint-placeholder-count="3">
+      <a href="{{toDetails}}" style="width: 400px; display: flex; flex-direction: column; gap: 12px;">
+        <img src="{{v.img}}" alt="" style="width: 400px; height: 225px; border-radius: 20px; object-fit: cover; display: block; background: var(--raised);">
+        <span style="display: flex; flex-direction: column; gap: 2px; padding: 0 4px;">
+          <span style="font-size: 28px; font-weight: 700;">{{v.title}}</span>
+          <span style="font-size: 24px; font-weight: 500; color: var(--muted);">{{v.meta}}</span>
+        </span>
+      </a>
+    </sc-for>
+  </div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var theme = (this.props.theme === 'light') ? 'light' : 'dark';
+    var sfx = theme === 'light' ? 'Light' : '';
+    var go = function (n) { return n + sfx + '.dc.html'; };
+    var NAV = [['Home', 'Home'], ['Live', 'ChannelList'], ['Guide', 'Guide'], ['VOD', 'VodHome'], ['Radio', 'Radio'], ['Search', 'Search'], ['Settings', 'SettingsAppearance']];
+    var nav = NAV.map(function (n) {
+      var on = n[0] === 'Search';
+      return { label: n[0], href: go(n[1]), cur: on ? 'page' : 'false', bg: on ? 'var(--hairline)' : 'transparent', color: on ? 'var(--text)' : 'var(--muted)' };
+    });
+    var ch = function (name, mark, meta, focused) {
+      return { name: name, mark: mark, meta: meta, bg: focused ? 'var(--focus)' : 'var(--surface)', fg: focused ? 'var(--on-focus)' : 'var(--text)', sub: focused ? 'var(--on-focus)' : 'var(--muted)' };
+    };
+    var pr = function (title, channel, when, now) {
+      return { title: title, channel: channel, when: when, badgeBg: now ? 'var(--accent)' : 'var(--raised)', badgeFg: now ? 'var(--on-accent)' : 'var(--text)' };
+    };
+    return {
+      themeClass: theme,
+      nav: nav,
+      toLive: go('LiveBanner'),
+      toGuide: go('Guide'),
+      toRadio: go('Radio'),
+      toDetails: go('VodDetails'),
+      channels: [ch('Ocean TV', 'OCEAN', '344 · Documentary', true), ch('Blue Ocean HD', 'BLUE', '1288 · Travel', false)],
+      progs: [pr('Ocean Giants', '305 Wildside', 'On now', true), pr('Oceans at Night', '340 Atlas Travel', '23:00', false), pr('Ocean Rescue', '306 Wildside Two', '06:30', false)],
+      vod: [
+        { title: 'Ocean Road', meta: 'Drama · 2023 · 1h 52m', img: '/_blob/55218fc6bfd255c1387919761bd282e1' },
+        { title: 'Oceanic', meta: 'Documentary · 2025 · 1h 10m', img: '/_blob/03304e5cb9b44ad6f7fe83d815010dcf' },
+        { title: 'The Ocean Between Us', meta: 'Series · 6 episodes', img: '/_blob/3baf79fd8489394f82d2f302b952d76a' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

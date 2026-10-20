@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hinds TV · VOD player</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/f0f5bd0ad344d8eafbaee286c82a1a4e">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="hinds {{themeClass}}" style="position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #000000; color: var(--text); font-family: Manrope, system-ui, -apple-system, 'Segoe UI', sans-serif;">
+
+<img src="/_blob/2e2daabf35e7493726d167fb20fbbc8a" alt="Video picture: sunrise above a sea of clouds" style="position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; object-fit: cover; display: block;">
+<div aria-hidden="true" style="position: absolute; left: 0; top: 620px; width: 1920px; height: 460px; background: linear-gradient(180deg, rgb(var(--bg-rgb) / 0) 0%, rgb(var(--bg-rgb) / 0.9) 45%, rgb(var(--bg-rgb) / 1) 100%);"></div>
+
+<section aria-label="Player controls" style="position: absolute; left: 96px; top: 784px; width: 1728px; display: flex; flex-direction: column; gap: 22px;">
+  <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 48px;">
+    <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+      <span style="font-size: 22px; font-weight: 700; letter-spacing: 0.14em; color: var(--muted);">UNSEEN · EPISODE 3</span>
+      <span style="font-size: 56px; line-height: 1.1; font-weight: 700; letter-spacing: -0.025em;">The Lighthouse</span>
+    </div>
+    <a href="{{toDetails}}" style="flex: 0 0 auto; width: 520px; box-sizing: border-box; padding: 14px; display: flex; align-items: center; gap: 18px; border-radius: 20px; background: var(--panel);">
+      <img src="/_blob/63dc4049b30a2fa298071cecd1a9d98b" alt="" style="width: 144px; height: 80px; border-radius: 10px; object-fit: cover; display: block;">
+      <span style="display: flex; flex-direction: column; gap: 2px; min-width: 0;">
+        <span style="font-size: 18px; font-weight: 700; letter-spacing: 0.14em; color: var(--muted);">UP NEXT</span>
+        <span style="font-size: 28px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">4 · Fog</span>
+      </span>
+    </a>
+  </div>
+  <div style="display: flex; align-items: center; gap: 28px;">
+    <span style="font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums;">38:12</span>
+    <span aria-hidden="true" style="position: relative; flex: 1 1 auto; height: 8px; border-radius: 4px; background: var(--track);">
+      <span style="position: absolute; left: 0; top: 0; width: 66%; height: 8px; border-radius: 4px; background: var(--accent);"></span>
+      <span style="position: absolute; left: calc(66% - 14px); top: -10px; width: 28px; height: 28px; border-radius: 14px; background: var(--focus);"></span>
+    </span>
+    <span style="font-size: 28px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums;">56:04</span>
+  </div>
+  <div style="display: flex; gap: 36px; font-size: 22px; font-weight: 600; color: var(--muted);">
+    <span>◀ ▶ 10 s</span>
+    <span>⏪ ⏩ 30 s</span>
+    <span>Select · pause</span>
+    <span>☰ audio &amp; subtitles</span>
+    <span>Back · to details</span>
+  </div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var theme = (this.props.theme === 'light') ? 'light' : 'dark';
+    var sfx = theme === 'light' ? 'Light' : '';
+    return {
+      themeClass: theme,
+      toDetails: 'VodDetails' + sfx + '.dc.html'
+    };
+  }
+}
+</script>
+</body>
+</html>

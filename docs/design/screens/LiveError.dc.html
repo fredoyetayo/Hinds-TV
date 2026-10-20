@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hinds TV · Channel can't play</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/f0f5bd0ad344d8eafbaee286c82a1a4e">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="hinds {{themeClass}}" style="position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #000000; color: var(--text); font-family: Manrope, system-ui, -apple-system, 'Segoe UI', sans-serif;">
+
+<div style="position: absolute; left: 96px; top: 48px; height: 64px; padding: 0 28px 0 12px; display: flex; align-items: center; gap: 16px; border-radius: 32px; background: var(--panel);">
+  <span style="height: 44px; padding: 0 12px; display: flex; align-items: center; border-radius: 22px; background: var(--raised); font-size: 22px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums;">118</span>
+  <span style="font-size: 26px; font-weight: 700;">Circuit</span>
+  <span style="font-size: 24px; font-weight: 500; color: var(--muted);">Night Qualifying</span>
+</div>
+
+<div role="status" style="position: absolute; left: 960px; top: 48px; transform: translateX(-50%); height: 64px; padding: 0 32px; display: flex; align-items: center; border-radius: 32px; background: var(--raised); font-size: 26px; font-weight: 700; white-space: nowrap;">Press Back again to exit</div>
+
+<div role="alert" style="position: absolute; left: 400px; top: 300px; width: 1120px; box-sizing: border-box; padding: 52px 56px; border-radius: 24px; background: var(--panel); display: flex; flex-direction: column; gap: 18px;">
+  <div style="display: flex; align-items: center; gap: 14px; font-size: 22px; font-weight: 700; letter-spacing: 0.14em; color: var(--error);">
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7.5v5.5"></path><path d="M12 16.5v.01"></path></svg>
+    THIS CHANNEL DIDN’T START
+  </div>
+  <p style="margin: 0; font-size: 34px; line-height: 1.35; font-weight: 600; text-wrap: pretty;">The provider refused the stream (HTTP 458). Another device may be using this account — close STB Emu and try again.</p>
+  <p style="margin: 0; font-size: 26px; line-height: 1.45; font-weight: 500; color: var(--muted);">Press ⏯ to try again, or Select to pick another channel.</p>
+  <div style="margin-top: 14px; display: flex; gap: 16px;">
+    <a href="{{toLive}}" style="height: 72px; padding: 0 40px; display: flex; align-items: center; border-radius: 36px; background: var(--focus); color: var(--on-focus); font-size: 28px; font-weight: 700;">Try again</a>
+    <a href="{{toList}}" style="height: 72px; padding: 0 36px; display: flex; align-items: center; border-radius: 36px; background: var(--chip); font-size: 28px; font-weight: 700;">Channel list</a>
+  </div>
+</div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var theme = (this.props.theme === 'light') ? 'light' : 'dark';
+    var sfx = theme === 'light' ? 'Light' : '';
+    return {
+      themeClass: theme,
+      toLive: 'LiveBanner' + sfx + '.dc.html',
+      toList: 'ChannelList' + sfx + '.dc.html'
+    };
+  }
+}
+</script>
+</body>
+</html>

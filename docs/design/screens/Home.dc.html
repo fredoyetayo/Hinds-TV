@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hinds TV · Home</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/f0f5bd0ad344d8eafbaee286c82a1a4e">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="hinds {{themeClass}}" style="position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); color: var(--text); font-family: Manrope, system-ui, -apple-system, 'Segoe UI', sans-serif;">
+
+<img src="{{wall}}" alt="" style="position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; object-fit: cover; display: block;">
+<div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: linear-gradient(90deg, rgb(var(--bg-rgb) / 0.86) 0%, rgb(var(--bg-rgb) / 0.5) 38%, rgb(var(--bg-rgb) / 0) 62%);"></div>
+<div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: linear-gradient(0deg, rgb(var(--bg-rgb) / 0.98) 0%, rgb(var(--bg-rgb) / 0.9) 36%, rgb(var(--bg-rgb) / 0) 60%);"></div>
+<div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 1920px; height: 200px; background: linear-gradient(180deg, rgb(var(--bg-rgb) / 0.6) 0%, rgb(var(--bg-rgb) / 0) 100%);"></div>
+
+<header style="position: absolute; left: 96px; top: 44px; height: 68px; display: flex; align-items: baseline; gap: 16px;">
+  <span style="font-size: 44px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">21:40</span>
+  <span style="font-size: 24px; font-weight: 500; color: var(--muted);">Tue 20 Oct</span>
+</header>
+
+<nav aria-label="Sections" style="position: absolute; left: 960px; top: 40px; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 6px; border-radius: 40px; background: var(--surface);">
+  <sc-for list="{{nav}}" as="n" hint-placeholder-count="7">
+    <a href="{{n.href}}" aria-current="{{n.cur}}" style="height: 56px; padding: 0 28px; display: flex; align-items: center; border-radius: 28px; background: {{n.bg}}; color: {{n.color}}; font-size: 26px; font-weight: 700; white-space: nowrap;">{{n.label}}</a>
+  </sc-for>
+</nav>
+
+<section aria-label="Continue watching" style="position: absolute; left: 96px; top: 160px; width: 920px; display: flex; flex-direction: column;">
+  <div style="font-size: 22px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent);">Continue watching</div>
+  <h1 style="margin: 12px 0 0; font-size: 104px; line-height: 0.96; font-weight: 700; letter-spacing: -0.035em;">Low Tide</h1>
+  <div style="margin-top: 22px; display: flex; align-items: center; gap: 14px; font-size: 26px; font-weight: 500; color: var(--muted);">
+    <span>Drama</span>
+    <span aria-hidden="true">·</span>
+    <span>2026</span>
+    <span aria-hidden="true">·</span>
+    <span>1h 54m</span>
+    <span style="margin-left: 10px; border: 2px solid var(--chip-line); border-radius: 8px; padding: 0 10px; font-size: 20px; font-weight: 700; letter-spacing: 0.04em; color: var(--text);">4K</span>
+    <span style="border: 2px solid var(--chip-line); border-radius: 8px; padding: 0 10px; font-size: 20px; font-weight: 700; letter-spacing: 0.04em; color: var(--text);">HDR</span>
+  </div>
+  <div style="margin-top: 22px; display: flex; align-items: center; gap: 18px;">
+    <span aria-hidden="true" style="display: block; width: 480px; height: 6px; border-radius: 3px; background: var(--track);"><span style="display: block; width: 58%; height: 6px; border-radius: 3px; background: var(--accent);"></span></span>
+    <span style="font-size: 24px; font-weight: 600; color: var(--muted);">48m left</span>
+  </div>
+  <p style="margin: 20px 0 0; max-width: 800px; font-size: 28px; line-height: 1.45; font-weight: 500; color: var(--muted); text-wrap: pretty;">She left the island at seventeen. Twenty years later a storm brings her home, and the tide starts giving back what it took.</p>
+  <div style="margin-top: 32px; display: flex; align-items: center; gap: 16px;">
+    <a href="{{toPlayer}}" style="height: 72px; padding: 0 40px 0 32px; display: flex; align-items: center; gap: 14px; border-radius: 36px; background: var(--focus); color: var(--on-focus); font-size: 28px; font-weight: 700;">
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.6v14.8a1 1 0 0 0 1.52.85l12.1-7.4a1 1 0 0 0 0-1.7L8.52 3.75A1 1 0 0 0 7 4.6z" fill="currentColor"></path></svg>
+      Resume from 1:06:12
+    </a>
+    <a href="{{toPlayer}}" style="height: 72px; padding: 0 36px; display: flex; align-items: center; border-radius: 36px; background: var(--chip); font-size: 28px; font-weight: 700;">Play from start</a>
+  </div>
+</section>
+
+<figure style="position: absolute; left: 1184px; top: 160px; width: 640px; margin: 0;">
+  <img src="/_blob/7eb606db91527d258905a86b086fcf37" alt="Low Tide: a woman in a scarf looks out over the sea at dusk" style="width: 640px; height: 360px; border-radius: 24px; object-fit: cover; display: block; background: var(--raised);">
+  <figcaption style="margin-top: 20px; font-size: 24px; font-weight: 500; color: var(--muted);">Next up <span style="margin-left: 8px; color: var(--text); font-weight: 700;">Unseen · Episode 4</span></figcaption>
+</figure>
+
+<section aria-label="My Channels" style="position: absolute; left: 96px; top: 652px; width: 1728px; display: flex; flex-direction: column; gap: 18px;">
+  <div style="display: flex; align-items: baseline; justify-content: space-between;">
+    <h2 style="margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.01em;">My Channels</h2>
+    <span style="font-size: 24px; font-weight: 500; color: var(--muted);">Press ☰ on any channel to add it here</span>
+  </div>
+  <div style="display: flex; gap: 24px;">
+    <sc-for list="{{mine}}" as="c" hint-placeholder-count="5">
+      <a href="{{toLive}}" aria-label="{{c.label}}" style="flex: 0 0 auto; width: 326px; display: flex; flex-direction: column; gap: 12px;">
+        <span style="position: relative; display: flex; align-items: center; justify-content: center; width: 326px; height: 150px; border-radius: 20px; background: var(--plate);">
+          <span style="position: absolute; left: 16px; top: 12px; font-size: 22px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums;">{{c.num}}</span>
+          <span aria-hidden="true" style="display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--text);">
+            <span style="{{c.ls}}">{{c.l1}}</span>
+            <span style="{{c.l2s}}">{{c.l2}}</span>
+          </span>
+          <span aria-hidden="true" style="position: absolute; left: 16px; right: 16px; bottom: 14px; height: 6px; border-radius: 3px; background: var(--track);"><span style="display: block; width: {{c.pctW}}; height: 6px; border-radius: 3px; background: var(--accent);"></span></span>
+        </span>
+        <span style="display: flex; flex-direction: column; gap: 2px; padding: 0 4px;">
+          <span style="font-size: 26px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{c.name}}</span>
+          <span style="font-size: 24px; font-weight: 500; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{c.now}}</span>
+        </span>
+      </a>
+    </sc-for>
+  </div>
+</section>
+
+<section aria-label="Recently watched" style="position: absolute; left: 96px; top: 972px; width: 1728px; height: 64px; display: flex; align-items: center; gap: 14px;">
+  <h2 style="margin: 0 14px 0 0; flex: 0 0 auto; font-size: 28px; font-weight: 700; letter-spacing: -0.01em;">Recently watched</h2>
+  <sc-for list="{{recent}}" as="r" hint-placeholder-count="4">
+    <a href="{{toLive}}" style="flex: 0 0 auto; height: 64px; padding: 0 28px 0 10px; display: flex; align-items: center; gap: 14px; border-radius: 32px; background: var(--surface);">
+      <span aria-hidden="true" style="width: 46px; height: 46px; border-radius: 23px; background: var(--raised); display: flex; align-items: center; justify-content: center; font-size: 17px; font-weight: 700; color: var(--muted);">{{r.ini}}</span>
+      <span style="font-size: 22px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums;">{{r.num}}</span>
+      <span style="font-size: 24px; font-weight: 700; white-space: nowrap;">{{r.name}}</span>
+    </a>
+  </sc-for>
+  <a href="{{toList}}" style="flex: 0 0 auto; margin-left: auto; height: 64px; padding: 0 28px 0 22px; display: flex; align-items: center; gap: 12px; border-radius: 32px; border: 2px solid var(--chip-line); font-size: 24px; font-weight: 700;">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"></rect><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"></rect><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"></rect><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"></rect></svg>
+    All channels
+  </a>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var theme = (this.props.theme === 'light') ? 'light' : 'dark';
+    var sfx = theme === 'light' ? 'Light' : '';
+    var go = function (n) { return n + sfx + '.dc.html'; };
+    var NAV = [['Home', 'Home'], ['Live', 'ChannelList'], ['Guide', 'Guide'], ['VOD', 'VodHome'], ['Radio', 'Radio'], ['Search', 'Search'], ['Settings', 'SettingsAppearance']];
+    var current = 'Home';
+    var nav = NAV.map(function (n) {
+      var on = n[0] === current;
+      return { label: n[0], href: go(n[1]), cur: on ? 'page' : 'false', bg: on ? 'var(--hairline)' : 'transparent', color: on ? 'var(--text)' : 'var(--muted)' };
+    });
+    var LS = {
+      arena: [44, 'font-weight:700;letter-spacing:-0.02em'],
+      meridian: [32, 'font-weight:500;letter-spacing:0.18em;margin-right:-0.18em'],
+      wild: [46, 'font-weight:700;letter-spacing:-0.04em'],
+      pulse: [50, 'font-weight:700;letter-spacing:-0.05em'],
+      savour: [46, "font-family:Georgia,'Times New Roman',serif;font-style:italic;font-weight:400"],
+      circuit: [34, 'font-weight:700;letter-spacing:0.14em;margin-right:-0.14em'],
+      kino: [42, 'font-weight:700;letter-spacing:0.3em;margin-right:-0.3em'],
+      atlas: [48, 'font-weight:600;letter-spacing:-0.02em'],
+      stage: [36, 'font-weight:500;letter-spacing:0.32em;margin-right:-0.32em']
+    };
+    var logo = function (c, s) {
+      var d = LS[c.k];
+      return Object.assign({}, c, {
+        ls: 'font-size:' + Math.round(d[0] * s) + 'px;line-height:1;' + d[1],
+        l2s: 'font-size:' + Math.max(11, Math.round(16 * s)) + 'px;font-weight:700;letter-spacing:0.24em;margin-right:-0.24em;color:var(--muted);line-height:1',
+        pctW: c.pct + '%',
+        label: c.num + ' ' + c.name + ', now: ' + c.now
+      });
+    };
+    var CH = {
+      a1: { num: '101', name: 'Arena Sport 1', l1: 'ARENA', l2: 'SPORT 1', k: 'arena', now: 'Matchday Live', pct: 64 },
+      a2: { num: '102', name: 'Arena Sport 2', l1: 'ARENA', l2: 'SPORT 2', k: 'arena', now: 'Varsity Football', pct: 58 },
+      ci: { num: '118', name: 'Circuit', l1: 'CIRCUIT', l2: 'MOTORSPORT', k: 'circuit', now: 'Night Qualifying', pct: 35 },
+      mn: { num: '201', name: 'Meridian News', l1: 'MERIDIAN', l2: 'NEWS', k: 'meridian', now: 'The Evening Briefing', pct: 40 },
+      ws: { num: '305', name: 'Wildside', l1: 'wildside', l2: 'NATURE', k: 'wild', now: 'Ocean Giants', pct: 22 },
+      at: { num: '340', name: 'Atlas Travel', l1: 'atlas', l2: 'TRAVEL', k: 'atlas', now: 'Northbound: The Fjords', pct: 70 },
+      kc: { num: '412', name: 'Kino Classic', l1: 'KINO', l2: 'CLASSIC', k: 'kino', now: 'The Long Road', pct: 30 },
+      pu: { num: '512', name: 'Pulse', l1: 'pulse', l2: 'MUSIC', k: 'pulse', now: 'Live Sessions', pct: 78 },
+      st: { num: '515', name: 'Stage', l1: 'STAGE', l2: 'LIVE MUSIC', k: 'stage', now: 'Encore', pct: 45 },
+      sv: { num: '620', name: 'Savour', l1: 'Savour', l2: 'FOOD', k: 'savour', now: 'Supper Club', pct: 55 }
+    };
+    var rc = function (c, ini) { return { num: c.num, name: c.name, ini: ini }; };
+    return {
+      themeClass: theme,
+      wall: theme === 'light' ? '/_blob/3baf79fd8489394f82d2f302b952d76a' : '/_blob/55218fc6bfd255c1387919761bd282e1',
+      nav: nav,
+      toPlayer: go('VodPlayer'),
+      toLive: go('LiveBanner'),
+      toList: go('ChannelList'),
+      mine: [CH.a1, CH.mn, CH.ws, CH.pu, CH.sv].map(function (c) { return logo(c, 1); }),
+      recent: [rc(CH.a2, 'A2'), rc(CH.kc, 'KC'), rc(CH.at, 'AT'), rc(CH.st, 'ST')]
+    };
+  }
+}
+</script>
+</body>
+</html>

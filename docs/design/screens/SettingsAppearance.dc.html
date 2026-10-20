@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hinds TV · Settings, Appearance</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/f0f5bd0ad344d8eafbaee286c82a1a4e">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="hinds {{themeClass}}" style="position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); color: var(--text); font-family: Manrope, system-ui, -apple-system, 'Segoe UI', sans-serif;">
+
+<header style="position: absolute; left: 96px; top: 44px; height: 68px; display: flex; align-items: baseline; gap: 16px;">
+  <span style="font-size: 44px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">21:40</span>
+  <span style="font-size: 24px; font-weight: 500; color: var(--muted);">Tue 20 Oct</span>
+</header>
+<nav aria-label="Sections" style="position: absolute; left: 960px; top: 40px; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 6px; border-radius: 40px; background: var(--surface);">
+  <sc-for list="{{nav}}" as="n" hint-placeholder-count="7">
+    <a href="{{n.href}}" aria-current="{{n.cur}}" style="height: 56px; padding: 0 28px; display: flex; align-items: center; border-radius: 28px; background: {{n.bg}}; color: {{n.color}}; font-size: 26px; font-weight: 700; white-space: nowrap;">{{n.label}}</a>
+  </sc-for>
+</nav>
+
+<aside aria-label="Settings sections" style="position: absolute; left: 72px; top: 150px; width: 504px; display: flex; flex-direction: column; gap: 4px;">
+  <div style="padding: 0 24px 12px; font-size: 22px; font-weight: 700; letter-spacing: 0.14em; color: var(--faint);">SETTINGS</div>
+  <a href="{{self}}" aria-current="page" style="height: 68px; padding: 0 24px; display: flex; align-items: center; border-radius: 24px; background: var(--raised); color: var(--accent); font-size: 28px; font-weight: 700;">Appearance</a>
+  <a href="{{toAccount}}" style="height: 68px; padding: 0 24px; display: flex; align-items: center; border-radius: 24px; font-size: 28px; font-weight: 600;">Account</a>
+  <a href="{{toAccount}}" style="height: 68px; padding: 0 24px; display: flex; align-items: center; border-radius: 24px; font-size: 28px; font-weight: 600;">Favourites lists</a>
+  <a href="{{toAccount}}" style="height: 68px; padding: 0 24px; display: flex; align-items: center; border-radius: 24px; font-size: 28px; font-weight: 600;">Playback</a>
+  <a href="{{toAccount}}" style="height: 68px; padding: 0 24px; display: flex; align-items: center; border-radius: 24px; font-size: 28px; font-weight: 600;">History</a>
+  <a href="{{toAccount}}" style="height: 68px; padding: 0 24px; display: flex; align-items: center; border-radius: 24px; font-size: 28px; font-weight: 600;">Diagnostics</a>
+  <a href="{{toAccount}}" style="height: 68px; padding: 0 24px; display: flex; align-items: center; border-radius: 24px; font-size: 28px; font-weight: 600;">About</a>
+</aside>
+
+<section aria-label="Appearance" style="position: absolute; left: 640px; top: 150px; width: 1184px; display: flex; flex-direction: column;">
+  <h1 style="margin: 0; font-size: 48px; font-weight: 700; letter-spacing: -0.02em;">Appearance</h1>
+  <p style="margin: 10px 0 0; font-size: 26px; font-weight: 500; color: var(--muted);">Changes apply straight away, everywhere in Hinds TV.</p>
+
+  <h2 style="margin: 38px 0 0; font-size: 28px; font-weight: 700;">Theme</h2>
+  <div role="radiogroup" aria-label="Theme" style="margin-top: 18px; display: flex; gap: 32px;">
+    <sc-for list="{{modes}}" as="m" hint-placeholder-count="3">
+      <button onClick="{{m.pick}}" role="radio" aria-checked="{{m.aria}}" style="width: 373px; padding: 0; border: 0; background: none; display: flex; flex-direction: column; gap: 12px; text-align: left; cursor: pointer;">
+        <span style="position: relative; display: block; width: 373px; height: 180px; border-radius: 20px; overflow: hidden; outline: {{m.ring}}; outline-offset: 0;">
+          <sc-if value="{{m.isAuto}}" hint-placeholder-val="{{ false }}">
+            <span style="position: absolute; left: 0; top: 0; width: 186px; height: 180px; overflow: hidden; background: #0B0B0D;">
+              <img src="/_blob/55218fc6bfd255c1387919761bd282e1" alt="" style="position: absolute; left: 0; top: 0; width: 373px; height: 180px; object-fit: cover;">
+              <span style="position: absolute; left: 0; top: 0; width: 373px; height: 180px; background: linear-gradient(90deg, rgba(11,11,13,0.88) 0%, rgba(11,11,13,0.25) 70%);"></span>
+              <span style="position: absolute; left: 20px; top: 26px; width: 60px; height: 8px; border-radius: 4px; background: #F2B33D;"></span>
+              <span style="position: absolute; left: 20px; top: 44px; width: 120px; height: 20px; border-radius: 6px; background: #F5F5F7;"></span>
+              <span style="position: absolute; left: 20px; top: 74px; width: 100px; height: 7px; border-radius: 4px; background: rgba(245,245,247,0.55);"></span>
+              <span style="position: absolute; left: 20px; top: 98px; width: 64px; height: 22px; border-radius: 11px; background: #F5F5F7;"></span>
+              <span style="position: absolute; left: 20px; top: 138px; width: 46px; height: 26px; border-radius: 6px; background: #1F1F25;"></span>
+              <span style="position: absolute; left: 74px; top: 138px; width: 46px; height: 26px; border-radius: 6px; background: #1F1F25;"></span>
+              <span style="position: absolute; left: 128px; top: 138px; width: 46px; height: 26px; border-radius: 6px; background: #1F1F25;"></span>
+            </span>
+            <span style="position: absolute; left: 187px; top: 0; width: 186px; height: 180px; overflow: hidden; background: #F3F2EE;">
+              <img src="/_blob/3baf79fd8489394f82d2f302b952d76a" alt="" style="position: absolute; left: -187px; top: 0; width: 373px; height: 180px; object-fit: cover;">
+              <span style="position: absolute; left: -187px; top: 0; width: 373px; height: 180px; background: linear-gradient(90deg, rgba(243,242,238,0.9) 0%, rgba(243,242,238,0.3) 70%);"></span>
+              <span style="position: absolute; left: 14px; top: 26px; width: 60px; height: 8px; border-radius: 4px; background: #2F4FC4;"></span>
+              <span style="position: absolute; left: 14px; top: 44px; width: 120px; height: 20px; border-radius: 6px; background: #14161B;"></span>
+              <span style="position: absolute; left: 14px; top: 74px; width: 100px; height: 7px; border-radius: 4px; background: rgba(20,22,27,0.5);"></span>
+              <span style="position: absolute; left: 14px; top: 98px; width: 64px; height: 22px; border-radius: 11px; background: #14161B;"></span>
+              <span style="position: absolute; left: 14px; top: 138px; width: 46px; height: 26px; border-radius: 6px; background: #FFFFFF;"></span>
+              <span style="position: absolute; left: 68px; top: 138px; width: 46px; height: 26px; border-radius: 6px; background: #FFFFFF;"></span>
+              <span style="position: absolute; left: 122px; top: 138px; width: 46px; height: 26px; border-radius: 6px; background: #FFFFFF;"></span>
+            </span>
+          </sc-if>
+          <sc-if value="{{m.isSingle}}" hint-placeholder-val="{{ true }}">
+            <span style="position: absolute; left: 0; top: 0; width: 373px; height: 180px; background: {{m.pv.bg}};">
+              <img src="{{m.pv.img}}" alt="" style="position: absolute; left: 0; top: 0; width: 373px; height: 180px; object-fit: cover;">
+              <span style="position: absolute; left: 0; top: 0; width: 373px; height: 180px; background: {{m.pv.veil}};"></span>
+              <span style="position: absolute; left: 22px; top: 26px; width: 64px; height: 8px; border-radius: 4px; background: {{m.pv.accent}};"></span>
+              <span style="position: absolute; left: 22px; top: 44px; width: 150px; height: 20px; border-radius: 6px; background: {{m.pv.ink}};"></span>
+              <span style="position: absolute; left: 22px; top: 74px; width: 120px; height: 7px; border-radius: 4px; background: {{m.pv.soft}};"></span>
+              <span style="position: absolute; left: 22px; top: 98px; width: 72px; height: 22px; border-radius: 11px; background: {{m.pv.ink}};"></span>
+              <span style="position: absolute; left: 22px; top: 138px; width: 72px; height: 26px; border-radius: 6px; background: {{m.pv.tile}};"></span>
+              <span style="position: absolute; left: 104px; top: 138px; width: 72px; height: 26px; border-radius: 6px; background: {{m.pv.tile}};"></span>
+              <span style="position: absolute; left: 186px; top: 138px; width: 72px; height: 26px; border-radius: 6px; background: {{m.pv.tile}};"></span>
+              <span style="position: absolute; left: 268px; top: 138px; width: 72px; height: 26px; border-radius: 6px; background: {{m.pv.tile}};"></span>
+            </span>
+          </sc-if>
+          <sc-if value="{{m.sel}}" hint-placeholder-val="{{ false }}">
+            <span aria-hidden="true" style="position: absolute; right: 14px; top: 14px; width: 40px; height: 40px; border-radius: 20px; background: var(--accent); color: var(--on-accent); display: flex; align-items: center; justify-content: center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span>
+          </sc-if>
+        </span>
+        <span style="display: flex; flex-direction: column; gap: 2px; padding: 0 4px;">
+          <span style="font-size: 28px; font-weight: 700; color: {{m.labelColor}};">{{m.label}}</span>
+          <span style="font-size: 22px; font-weight: 500; color: var(--muted);">{{m.caption}}</span>
+        </span>
+      </button>
+    </sc-for>
+  </div>
+
+  <h2 style="margin: 40px 0 0; font-size: 28px; font-weight: 700;">Home wallpaper <span style="font-weight: 500; color: var(--muted);">· {{wallSet}}</span></h2>
+  <div role="radiogroup" aria-label="Home wallpaper" style="margin-top: 18px; display: flex; gap: 24px;">
+    <sc-for list="{{walls}}" as="w" hint-placeholder-count="4">
+      <button onClick="{{w.pick}}" role="radio" aria-checked="{{w.aria}}" style="width: 224px; padding: 0; border: 0; background: none; display: flex; flex-direction: column; gap: 10px; text-align: left; cursor: pointer;">
+        <span style="position: relative; display: block; width: 224px; height: 126px; border-radius: 16px; overflow: hidden; outline: {{w.ring}}; outline-offset: 0;">
+          <img src="{{w.img}}" alt="" style="width: 224px; height: 126px; object-fit: cover; display: block;">
+          <sc-if value="{{w.sel}}" hint-placeholder-val="{{ false }}">
+            <span aria-hidden="true" style="position: absolute; right: 10px; top: 10px; width: 32px; height: 32px; border-radius: 16px; background: var(--accent); color: var(--on-accent); display: flex; align-items: center; justify-content: center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></span>
+          </sc-if>
+        </span>
+        <span style="padding: 0 4px; font-size: 22px; font-weight: 600; color: {{w.color}};">{{w.name}}</span>
+      </button>
+    </sc-for>
+  </div>
+
+  <h2 style="margin: 40px 0 0; font-size: 28px; font-weight: 700;">Start Hinds TV with</h2>
+  <div role="radiogroup" aria-label="Start with" style="margin-top: 16px; display: flex; gap: 16px;">
+    <sc-for list="{{starts}}" as="s" hint-placeholder-count="2">
+      <button onClick="{{s.pick}}" role="radio" aria-checked="{{s.aria}}" style="height: 68px; padding: 0 30px 0 22px; display: flex; align-items: center; gap: 12px; border: 0; border-radius: 34px; background: {{s.bg}}; color: {{s.fg}}; font-size: 26px; font-weight: 700; cursor: pointer;">
+        <span aria-hidden="true" style="width: 26px; height: 26px; box-sizing: border-box; border-radius: 13px; border: {{s.ring}}; display: flex; align-items: center; justify-content: center;"><span style="width: 12px; height: 12px; border-radius: 6px; background: {{s.dot}};"></span></span>
+        {{s.label}}
+      </button>
+    </sc-for>
+  </div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var self = this;
+    var st = this.state || {};
+    var initial = (this.props.theme === 'light') ? 'light' : 'dark';
+    var mode = st.mode || initial;
+    var hour = 21;
+    var resolved = mode === 'auto' ? ((hour >= 7 && hour < 19) ? 'light' : 'dark') : mode;
+    var sfx = initial === 'light' ? 'Light' : '';
+    var go = function (n) { return n + sfx + '.dc.html'; };
+    var NAV = [['Home', 'Home'], ['Live', 'ChannelList'], ['Guide', 'Guide'], ['VOD', 'VodHome'], ['Radio', 'Radio'], ['Search', 'Search'], ['Settings', 'SettingsAppearance']];
+    var nav = NAV.map(function (n) {
+      var on = n[0] === 'Settings';
+      return { label: n[0], href: go(n[1]), cur: on ? 'page' : 'false', bg: on ? 'var(--hairline)' : 'transparent', color: on ? 'var(--text)' : 'var(--muted)' };
+    });
+    var PV = {
+      dark: { bg: '#0B0B0D', img: '/_blob/55218fc6bfd255c1387919761bd282e1', veil: 'linear-gradient(90deg, rgba(11,11,13,0.88) 0%, rgba(11,11,13,0.2) 75%)', accent: '#F2B33D', ink: '#F5F5F7', soft: 'rgba(245,245,247,0.55)', tile: '#1F1F25' },
+      light: { bg: '#F3F2EE', img: '/_blob/3baf79fd8489394f82d2f302b952d76a', veil: 'linear-gradient(90deg, rgba(243,242,238,0.9) 0%, rgba(243,242,238,0.25) 75%)', accent: '#2F4FC4', ink: '#14161B', soft: 'rgba(20,22,27,0.5)', tile: '#FFFFFF' }
+    };
+    var MODES = [
+      ['dark', 'Dark', 'Best for evenings and dark rooms'],
+      ['light', 'Light', 'Best for bright, sunny rooms'],
+      ['auto', 'Automatic', 'Light 07:00–19:00, dark after']
+    ];
+    var modes = MODES.map(function (m) {
+      var sel = m[0] === mode;
+      return {
+        label: m[1], caption: m[2],
+        sel: sel, aria: sel ? 'true' : 'false',
+        isAuto: m[0] === 'auto', isSingle: m[0] !== 'auto',
+        pv: PV[m[0] === 'light' ? 'light' : 'dark'],
+        ring: sel ? '6px solid var(--focus)' : '2px solid var(--hairline)',
+        labelColor: sel ? 'var(--accent)' : 'var(--text)',
+        pick: function () { self.setState({ mode: m[0] }); }
+      };
+    });
+    var WALLS = {
+      dark: [['Moonlit sea', '/_blob/55218fc6bfd255c1387919761bd282e1'], ['Dusk ridge', '/_blob/f6919594dfc2aba7cb2ea2d0f926afd4'], ['Horizon', '/_blob/b409a895175ef461e4acb5c4f1f6b708'], ['Aurora', '/_blob/ebf42aa0c39f5b9001a2a4b918a70979']],
+      light: [['Still sea', '/_blob/3baf79fd8489394f82d2f302b952d76a'], ['Above the clouds', '/_blob/2e2daabf35e7493726d167fb20fbbc8a'], ['Mist peak', '/_blob/5c32eb8df87300a54fa76bb5145ab9a8'], ['Warm fog', '/_blob/63dc4049b30a2fa298071cecd1a9d98b']]
+    };
+    var wallSel = (st.walls || {})[resolved] || 0;
+    var walls = WALLS[resolved].map(function (w, i) {
+      var sel = i === wallSel;
+      return {
+        name: w[0], img: w[1], sel: sel, aria: sel ? 'true' : 'false',
+        ring: sel ? '4px solid var(--accent)' : 'none',
+        color: sel ? 'var(--text)' : 'var(--muted)',
+        pick: function () { var o = Object.assign({}, st.walls || {}); o[resolved] = i; self.setState({ walls: o }); }
+      };
+    });
+    var start = st.start || 'last';
+    var starts = [['last', 'Last channel (fastest)'], ['home', 'Home']].map(function (s) {
+      var sel = s[0] === start;
+      return {
+        label: s[1], aria: sel ? 'true' : 'false',
+        bg: sel ? 'var(--raised)' : 'var(--chip)',
+        fg: sel ? 'var(--accent)' : 'var(--text)',
+        ring: sel ? '3px solid var(--accent)' : '3px solid var(--chip-line)',
+        dot: sel ? 'var(--accent)' : 'transparent',
+        pick: function () { self.setState({ start: s[0] }); }
+      };
+    });
+    return {
+      themeClass: resolved,
+      nav: nav,
+      self: go('SettingsAppearance'),
+      toAccount: go('SettingsAccount'),
+      modes: modes,
+      walls: walls,
+      wallSet: resolved === 'light' ? 'for Light' : 'for Dark',
+      starts: starts
+    };
+  }
+}
+</script>
+</body>
+</html>

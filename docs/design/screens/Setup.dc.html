@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hinds TV · Setup</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/f0f5bd0ad344d8eafbaee286c82a1a4e">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="hinds {{themeClass}}" style="position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); color: var(--text); font-family: Manrope, system-ui, -apple-system, 'Segoe UI', sans-serif;">
+
+<div style="position: absolute; left: 0; top: 0; width: 720px; height: 1080px; overflow: hidden;">
+  <img src="{{wall}}" alt="" style="position: absolute; left: -240px; top: 0; width: 1920px; height: 1080px; object-fit: cover; display: block;">
+  <div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 720px; height: 1080px; background: linear-gradient(180deg, rgb(var(--bg-rgb) / 0.35) 0%, rgb(var(--bg-rgb) / 0.55) 55%, rgb(var(--bg-rgb) / 0.92) 100%);"></div>
+  <div style="position: absolute; left: 96px; top: 120px; width: 560px; display: flex; flex-direction: column;">
+    <span aria-hidden="true" style="width: 112px; height: 112px; border-radius: 28px; background: var(--accent); color: var(--on-accent); display: flex; align-items: center; justify-content: center;">
+      <svg width="48" height="48" viewBox="0 0 24 24"><path d="M7 4.6v14.8a1 1 0 0 0 1.52.85l12.1-7.4a1 1 0 0 0 0-1.7L8.52 3.75A1 1 0 0 0 7 4.6z" fill="currentColor"></path></svg>
+    </span>
+    <span style="margin-top: 40px; font-size: 80px; line-height: 1; font-weight: 700; letter-spacing: -0.04em;">Hinds TV</span>
+    <span style="margin-top: 18px; font-size: 30px; line-height: 1.4; font-weight: 500; color: var(--muted);">Fast, simple live TV, videos and radio for Fire TV.</span>
+  </div>
+  <p style="position: absolute; left: 96px; bottom: 64px; width: 540px; margin: 0; font-size: 22px; line-height: 1.5; font-weight: 500; color: var(--muted);">Hinds TV 0.5 · Audio decoding by FFmpeg (LGPL 2.1); source and build script in the project repository.</p>
+</div>
+
+<section aria-label="Connect your TV service" style="position: absolute; left: 832px; top: 128px; width: 992px; display: flex; flex-direction: column;">
+  <h1 style="margin: 0; font-size: 52px; line-height: 1.1; font-weight: 700; letter-spacing: -0.025em;">Connect your TV service</h1>
+  <div role="radiogroup" aria-label="How you connect" style="margin-top: 30px; display: flex; gap: 12px;">
+    <button onClick="{{pickPortal}}" role="radio" aria-checked="{{portalAria}}" style="height: 64px; padding: 0 30px; border: 0; border-radius: 32px; background: {{portalBg}}; color: {{portalFg}}; font-size: 26px; font-weight: 700; cursor: pointer;">MAC portal</button>
+    <button onClick="{{pickPlaylist}}" role="radio" aria-checked="{{playlistAria}}" style="height: 64px; padding: 0 30px; border: 0; border-radius: 32px; background: {{playlistBg}}; color: {{playlistFg}}; font-size: 26px; font-weight: 700; cursor: pointer;">Playlist or link</button>
+  </div>
+  <p style="margin: 26px 0 0; max-width: 940px; font-size: 26px; line-height: 1.5; font-weight: 500; color: var(--muted); text-wrap: pretty;">{{subtitle}}</p>
+
+  <div style="margin-top: 34px; display: flex; flex-direction: column; gap: 18px;">
+    <button style="height: 100px; padding: 0 30px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 4px; border: 0; border-radius: 24px; background: var(--surface); outline: 6px solid var(--focus); outline-offset: 0; text-align: left; cursor: pointer;">
+      <span style="font-size: 20px; font-weight: 700; letter-spacing: 0.06em; color: var(--muted);">{{field1Label}}</span>
+      <span style="font-size: 30px; font-weight: 600;">{{field1Value}}</span>
+    </button>
+    <div style="display: flex; gap: 16px;">
+      <button style="flex: 1 1 auto; height: 100px; padding: 0 30px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 4px; border: 0; border-radius: 24px; background: var(--surface); text-align: left; cursor: pointer;">
+        <span style="font-size: 20px; font-weight: 700; letter-spacing: 0.06em; color: var(--muted);">{{field2Label}}</span>
+        <span style="font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; color: {{field2Color}};">{{field2Value}}</span>
+      </button>
+      <sc-if value="{{isPortal}}" hint-placeholder-val="{{ true }}">
+        <button style="flex: 0 0 auto; height: 100px; padding: 0 40px; border: 0; border-radius: 24px; background: var(--chip); font-size: 26px; font-weight: 700; cursor: pointer;">Generate</button>
+      </sc-if>
+    </div>
+    <sc-if value="{{isPortal}}" hint-placeholder-val="{{ true }}">
+      <button style="align-self: flex-start; height: 64px; padding: 0 24px 0 20px; display: flex; align-items: center; gap: 10px; border: 0; border-radius: 32px; background: transparent; color: var(--muted); font-size: 26px; font-weight: 600; cursor: pointer;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+        Show advanced settings
+      </button>
+    </sc-if>
+  </div>
+
+  <div style="margin-top: 30px; display: flex; gap: 16px;">
+    <a href="{{toHome}}" style="height: 76px; padding: 0 48px; display: flex; align-items: center; border-radius: 38px; background: var(--accent); color: var(--on-accent); font-size: 28px; font-weight: 700;">Connect</a>
+    <a href="{{toAccount}}" style="height: 76px; padding: 0 40px; display: flex; align-items: center; border-radius: 38px; background: var(--chip); font-size: 28px; font-weight: 700;">Cancel</a>
+  </div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var self = this;
+    var theme = (this.props.theme === 'light') ? 'light' : 'dark';
+    var sfx = theme === 'light' ? 'Light' : '';
+    var st = this.state || {};
+    var portal = (st.mode || 'portal') === 'portal';
+    return {
+      themeClass: theme,
+      wall: theme === 'light' ? '/_blob/3baf79fd8489394f82d2f302b952d76a' : '/_blob/55218fc6bfd255c1387919761bd282e1',
+      isPortal: portal,
+      portalAria: portal ? 'true' : 'false',
+      playlistAria: portal ? 'false' : 'true',
+      portalBg: portal ? 'var(--raised)' : 'var(--chip)',
+      portalFg: portal ? 'var(--accent)' : 'var(--text)',
+      playlistBg: portal ? 'var(--chip)' : 'var(--raised)',
+      playlistFg: portal ? 'var(--text)' : 'var(--accent)',
+      pickPortal: function () { self.setState({ mode: 'portal' }); },
+      pickPlaylist: function () { self.setState({ mode: 'playlist' }); },
+      subtitle: portal
+        ? 'Use the portal address from your provider and the MAC address they registered (the one shown in STB Emu), or generate a new one and send it to them.'
+        : 'Paste an M3U playlist link, or a link to a single stream. Add a TV guide (XMLTV) link if your provider gives you one.',
+      field1Label: portal ? 'PORTAL URL' : 'PLAYLIST OR STREAM LINK',
+      field1Value: portal ? 'http://portal.yourprovider.tv/c/' : 'https://yourprovider.tv/get.php?type=m3u',
+      field2Label: portal ? 'MAC ADDRESS' : 'TV GUIDE LINK (XMLTV, OPTIONAL)',
+      field2Value: portal ? '00:1A:79:4F:2C:91' : 'Not set',
+      field2Color: portal ? 'var(--text)' : 'var(--faint)',
+      toHome: 'Home' + sfx + '.dc.html',
+      toAccount: 'SettingsAccount' + sfx + '.dc.html'
+    };
+  }
+}
+</script>
+</body>
+</html>

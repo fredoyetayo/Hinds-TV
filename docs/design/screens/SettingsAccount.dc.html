@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hinds TV · Settings, Account</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="/_blob/f0f5bd0ad344d8eafbaee286c82a1a4e">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div class="hinds {{themeClass}}" style="position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); color: var(--text); font-family: Manrope, system-ui, -apple-system, 'Segoe UI', sans-serif;">
+
+<header style="position: absolute; left: 96px; top: 44px; height: 68px; display: flex; align-items: baseline; gap: 16px;">
+  <span style="font-size: 44px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">21:40</span>
+  <span style="font-size: 24px; font-weight: 500; color: var(--muted);">Tue 20 Oct</span>
+</header>
+<nav aria-label="Sections" style="position: absolute; left: 960px; top: 40px; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 6px; border-radius: 40px; background: var(--surface);">
+  <sc-for list="{{nav}}" as="n" hint-placeholder-count="7">
+    <a href="{{n.href}}" aria-current="{{n.cur}}" style="height: 56px; padding: 0 28px; display: flex; align-items: center; border-radius: 28px; background: {{n.bg}}; color: {{n.color}}; font-size: 26px; font-weight: 700; white-space: nowrap;">{{n.label}}</a>
+  </sc-for>
+</nav>
+
+<aside aria-label="Settings sections" style="position: absolute; left: 72px; top: 150px; width: 504px; display: flex; flex-direction: column; gap: 4px;">
+  <div style="padding: 0 24px 12px; font-size: 22px; font-weight: 700; letter-spacing: 0.14em; color: var(--faint);">SETTINGS</div>
+  <a href="{{toAppearance}}" style="height: 68px; padding: 0 24px; display: flex; align-items: center; border-radius: 24px; font-size: 28px; font-weight: 600;">Appearance</a>
+  <a href="{{self}}" aria-current="page" style="height: 68px; padding: 0 24px; display: flex; align-items: center; border-radius: 24px; background: var(--raised); color: var(--accent); font-size: 28px; font-weight: 700;">Account</a>
+  <a href="{{self}}" style="height: 68px; padding: 0 24px; display: flex; align-items: center; border-radius: 24px; font-size: 28px; font-weight: 600;">Favourites lists</a>
+  <a href="{{self}}" style="height: 68px; padding: 0 24px; display: flex; align-items: center; border-radius: 24px; font-size: 28px; font-weight: 600;">Playback</a>
+  <a href="{{self}}" style="height: 68px; padding: 0 24px; display: flex; align-items: center; border-radius: 24px; font-size: 28px; font-weight: 600;">History</a>
+  <a href="{{self}}" style="height: 68px; padding: 0 24px; display: flex; align-items: center; border-radius: 24px; font-size: 28px; font-weight: 600;">Diagnostics</a>
+  <a href="{{self}}" style="height: 68px; padding: 0 24px; display: flex; align-items: center; border-radius: 24px; font-size: 28px; font-weight: 600;">About</a>
+</aside>
+
+<section aria-label="Account" style="position: absolute; left: 640px; top: 150px; width: 1184px; display: flex; flex-direction: column;">
+  <h1 style="margin: 0; font-size: 48px; font-weight: 700; letter-spacing: -0.02em;">Account</h1>
+  <p style="margin: 10px 0 0; font-size: 26px; font-weight: 500; color: var(--muted);">Your MAC and tokens stay on this TV and are never shown in full.</p>
+
+  <dl style="margin: 34px 0 0; padding: 8px 32px; border-radius: 24px; background: var(--surface); display: flex; flex-direction: column;">
+    <sc-for list="{{fields}}" as="f" hint-placeholder-count="7">
+      <div style="height: 76px; display: flex; align-items: center; border-bottom: {{f.line}};">
+        <dt style="width: 380px; font-size: 26px; font-weight: 500; color: var(--muted);">{{f.k}}</dt>
+        <dd style="margin: 0; font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; color: {{f.color}};">{{f.v}}</dd>
+      </div>
+    </sc-for>
+  </dl>
+
+  <div style="margin-top: 34px; display: flex; gap: 16px;">
+    <a href="{{toSetup}}" style="height: 72px; padding: 0 40px; display: flex; align-items: center; border-radius: 36px; background: var(--focus); color: var(--on-focus); font-size: 28px; font-weight: 700;">Change account</a>
+    <button style="height: 72px; padding: 0 36px; border: 0; border-radius: 36px; background: var(--chip); font-size: 28px; font-weight: 700; cursor: pointer;">Refresh channels</button>
+  </div>
+</section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":1920,"height":1080}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var theme = (this.props.theme === 'light') ? 'light' : 'dark';
+    var sfx = theme === 'light' ? 'Light' : '';
+    var go = function (n) { return n + sfx + '.dc.html'; };
+    var NAV = [['Home', 'Home'], ['Live', 'ChannelList'], ['Guide', 'Guide'], ['VOD', 'VodHome'], ['Radio', 'Radio'], ['Search', 'Search'], ['Settings', 'SettingsAppearance']];
+    var nav = NAV.map(function (n) {
+      var on = n[0] === 'Settings';
+      return { label: n[0], href: go(n[1]), cur: on ? 'page' : 'false', bg: on ? 'var(--hairline)' : 'transparent', color: on ? 'var(--text)' : 'var(--muted)' };
+    });
+    var F = [
+      ['Type', 'MAC portal'],
+      ['Server', 'portal.yourprovider.tv'],
+      ['MAC address', '00:1A:79:••:••:3C'],
+      ['Channels', '10,412'],
+      ['Channels updated', 'Today, 18:02'],
+      ['Subscription ends', '14 Mar 2027'],
+      ['Plan', 'Premium']
+    ];
+    return {
+      themeClass: theme,
+      nav: nav,
+      self: go('SettingsAccount'),
+      toAppearance: go('SettingsAppearance'),
+      toSetup: go('Setup'),
+      fields: F.map(function (f, i) {
+        return { k: f[0], v: f[1], line: i < F.length - 1 ? '2px solid var(--hairline)' : '0', color: 'var(--text)' };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

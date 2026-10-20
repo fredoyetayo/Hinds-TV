@@ -1,0 +1,30 @@
+/* Hinds TV design tokens: dark ("Cinema") and light ("Daylight"). Values mirror ui/theme/Theme.kt. */
+.hinds{
+  --bg:#0B0B0D; --bg-rgb:11 11 13;
+  --panel:rgb(11 11 13 / 0.95);
+  --surface:#141418; --raised:#1F1F25; --hairline:#2A2A31;
+  --focus:#F5F5F7; --on-focus:#0B0B0D;
+  --accent:#F2B33D; --on-accent:#0B0B0D;
+  --text:#F5F5F7; --muted:#A1A1AA; --faint:#8A8A94;
+  --error:#FF6B5B; --live:#FF5A4E;
+  --chip:rgb(255 255 255 / 0.10); --chip-line:rgb(255 255 255 / 0.14);
+  --plate:#1F1F25; --track:rgb(255 255 255 / 0.18);
+  --dim:rgb(0 0 0 / 0.6);
+  color:var(--text); background:var(--bg);
+  font-family:Manrope, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.hinds.light{
+  --bg:#F3F2EE; --bg-rgb:243 242 238;
+  --panel:rgb(246 245 241 / 0.97);
+  --surface:#FFFFFF; --raised:#E6E7EB; --hairline:#D8D9DF;
+  --focus:#14161B; --on-focus:#FFFFFF;
+  --accent:#2F4FC4; --on-accent:#FFFFFF;
+  --text:#14161B; --muted:#555A66; --faint:#6B707C;
+  --error:#C8372D; --live:#D93A2F;
+  --chip:rgb(20 22 27 / 0.06); --chip-line:rgb(20 22 27 / 0.14);
+  --plate:#FFFFFF; --track:rgb(20 22 27 / 0.14);
+  --dim:rgb(20 22 27 / 0.45);
+}
+.hinds a{color:inherit;text-decoration:none}
+.hinds button{font-family:inherit;color:inherit}
