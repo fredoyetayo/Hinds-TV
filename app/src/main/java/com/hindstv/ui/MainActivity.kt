@@ -11,13 +11,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.hindstv.HindsApp
 import com.hindstv.ui.components.NavSection
 import com.hindstv.ui.radio.RadioScreen
 import com.hindstv.ui.search.SearchScreen
+import com.hindstv.ui.settings.SettingsScreen
 import com.hindstv.ui.setup.SetupScreen
 import com.hindstv.ui.theme.HindsTheme
 import com.hindstv.ui.tv.ListEditDialog
 import com.hindstv.ui.tv.ListPickerDialog
+import com.hindstv.ui.tv.TrackPickerDialog
 import com.hindstv.ui.tv.TvScreen
 import com.hindstv.ui.videos.VideosScreen
 
@@ -26,13 +29,14 @@ class MainActivity : ComponentActivity() {
     private val videoVm: VideoViewModel by viewModels { VideoViewModel.Factory }
     private val radioVm: RadioViewModel by viewModels { RadioViewModel.Factory }
     private val searchVm: SearchViewModel by viewModels { SearchViewModel.Factory }
+    private val settingsVm: SettingsViewModel by viewModels { SettingsViewModel.Factory }
 
     /** Keys whose DOWN we consumed; their UP must not leak into Compose (e.g. a stray click). */
     private val consumedKeys = mutableSetOf<Int>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { HindsTheme { HindsRoot(vm, videoVm, radioVm, searchVm) } }
+        setContent { HindsTheme { HindsRoot(vm, videoVm, radioVm, searchVm, settingsVm, (application as HindsApp).container.trackPicker) } }
     }
 
     override fun onStart() {
@@ -74,7 +78,7 @@ class MainActivity : ComponentActivity() {
         }
         // The guide handles every key itself (channel paging, Back, Guide to close).
         if (vm.screen.value == Screen.Tv && !vm.isGuideOpen) {
-            val action = RemoteKeys.map(event.keyCode, vm.isFullscreen)
+            val action = RemoteKeys.map(event.keyCode, vm.isFullscreen, vm.invertUpDown)
             if (action != null) {
                 if (event.action == KeyEvent.ACTION_DOWN) {
                     consumedKeys += event.keyCode
@@ -100,7 +104,14 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun HindsRoot(vm: AppViewModel, videoVm: VideoViewModel, radioVm: RadioViewModel, searchVm: SearchViewModel) {
+private fun HindsRoot(
+    vm: AppViewModel,
+    videoVm: VideoViewModel,
+    radioVm: RadioViewModel,
+    searchVm: SearchViewModel,
+    settingsVm: SettingsViewModel,
+    trackPicker: TrackPicker,
+) {
     val screen by vm.screen.collectAsStateWithLifecycle()
     val profileVersion by vm.profileVersion.collectAsStateWithLifecycle()
     LaunchedEffect(profileVersion) { if (profileVersion > 0) videoVm.reset() }
@@ -130,7 +141,8 @@ private fun HindsRoot(vm: AppViewModel, videoVm: VideoViewModel, radioVm: RadioV
             NavSection.Settings -> {
                 videoVm.onLeave()
                 radioVm.stop()
-                vm.openSettings()
+                vm.openSection(Screen.Settings)
+                settingsVm.onOpen()
             }
         }
     }
@@ -139,6 +151,8 @@ private fun HindsRoot(vm: AppViewModel, videoVm: VideoViewModel, radioVm: RadioV
     val listEdit by vm.listEdit.collectAsStateWithLifecycle()
     listPicker?.let { ListPickerDialog(it, vm::toggleInList, vm::createListWith, vm::closeListPicker) }
     listEdit?.let { ListEditDialog(it, vm::renameList, vm::deleteList, vm::closeListEdit) }
+    val tracks by trackPicker.choices.collectAsStateWithLifecycle()
+    tracks?.let { TrackPickerDialog(it, trackPicker::selectAudio, trackPicker::selectSubtitles, trackPicker::close) }
 
     when (screen) {
         Screen.Setup -> {
@@ -154,6 +168,14 @@ private fun HindsRoot(vm: AppViewModel, videoVm: VideoViewModel, radioVm: RadioV
         Screen.Tv -> TvScreen(vm, navigate)
         Screen.Videos -> VideosScreen(videoVm, navigate, onExit = { navigate(NavSection.Live) })
         Screen.Radio -> RadioScreen(radioVm, navigate, onExit = { navigate(NavSection.Live) })
+        Screen.Settings -> SettingsScreen(
+            settingsVm,
+            navigate,
+            onExit = { navigate(NavSection.Live) },
+            onChangeAccount = vm::openSetup,
+            onRefreshChannels = vm::refreshChannels,
+            onEditList = vm::editList,
+        )
         Screen.Search -> SearchScreen(
             searchVm,
             navigate,

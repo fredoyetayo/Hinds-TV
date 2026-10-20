@@ -18,6 +18,7 @@ import com.hindstv.data.source.SourceProfile
 import com.hindstv.data.source.StalkerSource
 import com.hindstv.data.stalker.StalkerClient
 import com.hindstv.player.PlayerEngine
+import com.hindstv.ui.TrackPicker
 import okio.Path.Companion.toOkioPath
 
 class HindsApp : Application(), SingletonImageLoader.Factory {
@@ -47,6 +48,7 @@ class AppContainer(private val app: Application) {
     val channels by lazy { ChannelRepository(database.channelDao(), database.epgDao(), profileStore) { source() } }
     val media by lazy { MediaRepository(database.mediaDao()) { source() } }
     val player by lazy { PlayerEngine(app, http) }
+    val trackPicker by lazy { TrackPicker(player) }
 
     @Volatile private var source: ChannelSource? = null
     @Volatile private var sourceProfile: SourceProfile? = null

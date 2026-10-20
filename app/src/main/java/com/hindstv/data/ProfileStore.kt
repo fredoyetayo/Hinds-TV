@@ -89,6 +89,11 @@ class ProfileStore(context: Context) {
         get() = prefs.getString(KEY_LAST_GENRE, null)?.let { if (it == LEGACY_FAVORITES) "__list:1" else it }
         set(value) = prefs.edit { putString(KEY_LAST_GENRE, value) }
 
+    /** ▲ goes to the previous channel instead of the next (list order). */
+    var invertUpDown: Boolean
+        get() = prefs.getBoolean(KEY_INVERT, false)
+        set(value) = prefs.edit { putBoolean(KEY_INVERT, value) }
+
     /** The group the guide last showed (e.g. a favourites list), so it opens there next time. */
     var guideGroupId: String?
         get() = prefs.getString(KEY_GUIDE_GROUP, null)
@@ -122,6 +127,7 @@ class ProfileStore(context: Context) {
         const val KEY_LAST_CHANNEL = "last_channel"
         const val KEY_RECENT_SEARCHES = "recent_searches"
         const val KEY_GUIDE_GROUP = "guide_group"
+        const val KEY_INVERT = "invert_up_down"
         const val LEGACY_FAVORITES = "__favorites"
         const val KEY_LAST_GENRE = "last_genre"
         const val KEY_LAST_SYNC = "last_sync"

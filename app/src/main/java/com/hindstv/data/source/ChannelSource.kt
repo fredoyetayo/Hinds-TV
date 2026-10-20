@@ -84,6 +84,8 @@ data class VideoEpisode(
     val series: Int?,
 )
 
+data class AccountInfo(val expiry: String?, val plan: String?)
+
 data class RadioStation(val id: String, val name: String, val number: Int, val cmd: String, val logo: String?)
 
 /** One guide entry for one of our channels. Times are epoch seconds. */
@@ -138,6 +140,9 @@ interface ChannelSource {
 
     /** A playable URL for a video or one of its episodes. */
     suspend fun videoUrl(cmd: String, series: Int?): String = cmd
+
+    /** Subscription details, when the provider shares them. */
+    suspend fun account(): AccountInfo? = null
 
     /** Addresses to try for a station, best first. */
     suspend fun radioUrls(cmd: String): List<String> = listOf(cmd)

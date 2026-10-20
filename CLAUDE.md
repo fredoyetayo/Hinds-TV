@@ -49,6 +49,8 @@ are mostly school lessons) with Netflix-style resume, and **Radio**.
 app/src/main/java/com/hindstv/
   HindsApp.kt                  Application + AppContainer (lazy manual DI) + Coil image loader
   core/Http.kt                 the single shared OkHttpClient, Call.await()
+  core/Diagnostics.kt          in-memory ring (80) of portal/player events for Settings → Diagnostics; redact()
+                               strips MACs, tokens, serials, signatures (pure, tested). Never written to disk
   data/stalker/                Stalker portal client: pure Kotlin, JVM-unit-testable, no android.*
     StalkerClient.kt           discovery, handshake/get_profile, re-auth, channels, create_link, EPG, watchdog
     StalkerModels.kt           session/genre/channel models + StalkerException hierarchy
@@ -70,10 +72,14 @@ app/src/main/java/com/hindstv/
   player/PlayerEngine.kt       the one ExoPlayer: tuned LoadControl, OkHttp data source, TS flags, FFmpeg ext
   player/ZapController.kt      zap debouncing (lone press = instant, bursts settle 500 ms)
   player/ResumePolicy.kt       when a video counts as started/finished and where to resume (pure, tested)
+  player/Tracks.kt             TrackOption/TrackChoices + TrackLabels ("English · 5.1 · Dolby Digital", tested)
   ui/AppViewModel.kt           navigation (screen), live TV: overlays, playback, zapping, setup, sync, watchdog
   ui/VideoViewModel.kt         Videos: library rows, details/episodes, video player keys, resume saving
   ui/RadioViewModel.kt         Radio: stations, playback, ICY now-playing, screen off
   ui/SearchViewModel.kt        search as you type: channels, guide programmes, videos (portal search), radio
+  ui/SettingsViewModel.kt      Settings: account (+ account_info expiry), lists order, ▲/▼ invert, history,
+                               diagnostics; maskMac/hostOf (tested)
+  ui/TrackPicker.kt            app-wide "Audio & subtitles" dialog state over the one PlayerEngine
   ui/MainActivity.kt           full-screen remote handling in dispatchKeyEvent; lifecycle → VM
   ui/RemoteKeys.kt             keycode → RemoteAction mapping
   ui/tv/                       TvScreen (video, info banner, toasts), ChannelListOverlay, GuideOverlay
@@ -81,9 +87,12 @@ app/src/main/java/com/hindstv/
   ui/radio/RadioScreen.kt      now playing + station grid
   ui/search/SearchScreen.kt    one box, results in rows, recent searches
   ui/tv/FavoriteDialogs.kt     "Add to list" picker (tick lists, make a new one) and rename/delete
+  ui/tv/TrackPickerDialog.kt   audio tracks | subtitles (+ Off)
+  ui/settings/SettingsScreen.kt  section rail (focus previews) + pane
   ui/setup/SetupScreen.kt      MAC portal (URL, MAC + Generate, advanced) or playlist/link (+ XMLTV)
   ui/components/               TvTextField (D-pad-safe input), Common (clock, logo, progress, VideoSurface),
-                               Cinema (TopNav pills, PillButton, PosterCard, Artwork, LevelBars, formats)
+                               Cinema (TopNav pills, PillButton, PosterCard, Artwork, LevelBars, formats),
+                               PageJump (⏪⏩ page jumps in lazy lists/grids; also "focus this index")
   ui/theme/Theme.kt            "Cinema" palette (near-black, gold accent), Manrope type, focus styling
 ffmpeg-audio/                  Media3 FFmpeg *audio* decoder (MP2/AC3/E-AC3/DTS/TrueHD), prebuilt LGPL .so
 tools/fake-portal/             fake Stalker portal + test streams for development without a subscription
@@ -100,14 +109,14 @@ tools/fake-portal/             fake Stalker portal + test streams for developmen
   - ▲/▼ and CH± zap within the current group.
   - Select or ◀ opens the channel list. The Live/Guide (TV) key opens the TV guide from anywhere.
   - ▶ shows the info banner.
-  - ⏪ goes to the previous channel.
+  - ⏪ goes to the previous channel. ⏩ opens Audio & subtitles.
   - ☰ toggles favourite.
   - ⏯ stops or resumes (live TV is released, not paused).
   - Back twice exits.
-- **Overlay.** Section pills on top (Live · Guide · Videos · Radio · Search · Settings). Groups on the left:
+- **Overlay.** Section pills on top (Live · Guide · VOD · Radio · Search · Settings). Groups on the left:
   the user's favourites lists first (★), then All, then the provider's groups (focus previews a group,
   debounced); channels on the right with what's on now. Select plays, ☰ opens "Add to list" (☰ on a list
-  renames/deletes it), Back closes. Footer: Refresh channels.
+  renames/deletes it), ⏪⏩ jump 10 channels, Back closes. Footer: Refresh channels.
 - **Favourites lists.** Any number of named lists; a channel can be in several. Group ids `__list:<id>`.
   Dialogs are `Dialog` windows, so focus stays inside them and Back closes them.
 - **Search.** Opens with the keyboard up; 300 ms debounce; local results first, the portal's VOD search
@@ -120,7 +129,14 @@ tools/fake-portal/             fake Stalker portal + test streams for developmen
   after 250 ms) + 3-column poster grid with paging, title filter (portal `search=`) and Newest/A–Z
   (`sortby=added|name`). "Continue watching" resumes straight into the video. Details: Resume / Play from start, episodes.
   Player: `MainActivity` sends keys to `VideoViewModel.onPlayerKey` (◀▶ ±10 s, ⏪⏩ ±30 s, accumulating;
-  Select/⏯ pause). Position saved every 10 s, on pause, Back and `onStop`. Series run on to the next episode.
+  Select/⏯ pause, ☰ Audio & subtitles). Position saved every 10 s, on pause, Back and `onStop`. Series run on
+  to the next episode. ⏪⏩ page the grid; Back from details refocuses the card (`returnFocusKey`).
+- **Audio & subtitles.** `PlayerEngine.trackChoices()/selectTrack()`: a pick is a `TrackSelectionOverride`
+  plus the preferred language, so the next channel keeps it. Subtitles are drawn by `SubtitleLayer` in
+  `VideoSurface` (text along the bottom, bitmap DVB/PGS cues where placed); no media3-ui dependency.
+- **Settings.** Its own `Screen`; "Change account" opens Setup, whose Cancel returns to Settings. Diagnostics
+  shows `Diagnostics.recent()`: `StalkerClient` logs each call's HTTP code and a short redacted body (list
+  calls by size only; not the watchdog), `PlayerEngine` logs URLs played, errors and selected formats.
 - **Radio.** Station grid; Stop; Screen off (black overlay, any key wakes). Back returns to Live. Plays the
   portal's `create_link` first, then the raw `cmd` URL; 15 s without audio moves on / shows an error.
 - **Guide.** ⏪ ⏩ step through groups (favourites lists first), remembered in `guideGroupId`; ⏯ back to now.
@@ -233,6 +249,10 @@ too; videos are seekable (`vod.mp4` with Range support).
   - Named favourites lists (several per channel; rename/delete; zap within a list).
   - Search across channels, guide, videos and radio; recent searches.
   - Speed: session token reuse, faster start of playback, baseline profile, on-screen tune time.
+- [x] **v0.5.**
+  - Settings: account + expiry, order/rename/delete lists, invert ▲/▼, clear history, diagnostics, about.
+  - ⏪⏩ page jumps (channel list, VOD grid, radio); Back from VOD details returns to the same card.
+  - Audio & subtitle picker with our own subtitle rendering.
 - [ ] **Phase 1 — Prove it on the stick.**
   - Install on the 4K Max and connect to the real portal. Fix any portal quirks.
   - Measure the start, zap and memory budgets.
@@ -245,11 +265,9 @@ too; videos are seekable (`vod.mp4` with Range support).
 - [ ] **Phase 3 — Polish.**
   - MediaSession.
   - Baseline Profile (generated on an emulator).
-  - Audio/subtitle track picker.
   - Aspect/zoom.
-  - Settings screen (invert ▲/▼, buffer size, AFR).
+  - More settings (buffer size, AFR).
   - Parental PIN for censored groups.
-  - Account expiry display (`account_info`).
 - [ ] **Phase 4 — More sources.** Xtream Codes API, multiple profiles, per-playlist user agent.
 - [ ] **Phase 5 — More VOD, catch-up.**
   - Series model (b) (`type=series` categories on newer portals); video search; favourite videos.

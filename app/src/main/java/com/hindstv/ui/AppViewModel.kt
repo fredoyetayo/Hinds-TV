@@ -40,7 +40,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** Top-level places. Live TV (with its overlays) is home; videos and radio sit beside it. */
-enum class Screen { Setup, Tv, Videos, Radio, Search }
+enum class Screen { Setup, Tv, Videos, Radio, Search, Settings }
 
 enum class Overlay { None, Banner, ChannelList, Guide }
 
@@ -328,6 +328,9 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
             (_overlay.value == Overlay.None || _overlay.value == Overlay.Banner) &&
             _playback.value.channel != null
 
+    /** Read on every key press, so a change in Settings applies at once. */
+    val invertUpDown: Boolean get() = store.invertUpDown
+
     val isGuideOpen: Boolean get() = _screen.value == Screen.Tv && _overlay.value == Overlay.Guide
 
     fun onRemote(action: RemoteAction) {
@@ -336,6 +339,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
             RemoteAction.ChannelDown -> zap(-1)
             RemoteAction.OpenList -> showChannelList()
             RemoteAction.OpenGuide -> openGuide()
+            RemoteAction.Tracks -> container.trackPicker.open()
             RemoteAction.ShowInfo -> showBanner()
             RemoteAction.Recall -> previousChannel?.let { play(it, zapGenre.value) }
             RemoteAction.ToggleFavorite -> _playback.value.channel?.let { toggleFavorite(it.id) }
@@ -458,6 +462,11 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
     fun editList(listId: Long) {
         val list = genres.value.firstOrNull { it.listId == listId } ?: return
         _listEdit.value = ListEditUi(listId, list.title.removePrefix("★  "))
+    }
+
+    /** Rename/delete from Settings → Favourites. */
+    fun editList(listId: Long, name: String) {
+        _listEdit.value = ListEditUi(listId, name)
     }
 
     fun renameList(name: String) {
@@ -638,8 +647,10 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         if (playback.channel != null && playback.status != PlayStatus.Stopped) resumeOnForeground = true
     }
 
-    fun openSettings() {
+    /** Account details form ("Change account" in Settings); Cancel returns to where it was opened. */
+    fun openSetup() {
         val profile = store.profile
+        setupReturn = if (_screen.value == Screen.Settings) Screen.Settings else Screen.Tv
         if (_screen.value == Screen.Tv) releaseLive() else engine.stop()
         watchdogJob?.cancel()
         _setup.value = SetupUi(
@@ -661,9 +672,11 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     fun cancelSetup() {
         if (store.profile == null) return
-        _screen.value = Screen.Tv
-        onForeground()
+        _screen.value = setupReturn
+        if (setupReturn == Screen.Tv) onForeground()
     }
+
+    private var setupReturn = Screen.Tv
 
     fun updateForm(transform: (SetupForm) -> SetupForm) {
         _setup.update { it.copy(form = transform(it.form), error = null) }

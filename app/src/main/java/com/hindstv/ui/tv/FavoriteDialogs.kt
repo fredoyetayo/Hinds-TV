@@ -113,7 +113,7 @@ fun ListEditDialog(edit: ListEditUi, onRename: (String) -> Unit, onDelete: () ->
 }
 
 @Composable
-private fun DialogPanel(content: @Composable () -> Unit) {
+internal fun DialogPanel(content: @Composable () -> Unit) {
     Column(
         Modifier
             .width(520.dp)

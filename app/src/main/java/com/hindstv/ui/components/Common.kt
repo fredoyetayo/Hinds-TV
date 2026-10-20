@@ -1,6 +1,19 @@
 package com.hindstv.ui.components
 
 import androidx.compose.foundation.background
+import androidx.annotation.OptIn
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.text.style.TextAlign
+import androidx.media3.common.text.Cue
+import androidx.media3.common.text.CueGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -110,7 +123,79 @@ fun VideoSurface(player: Player) {
                 .resizeWithContentScale(ContentScale.Fit, presentation.videoSizeDp),
         )
         if (presentation.coverSurface) Box(Modifier.fillMaxSize().background(Color.Black))
+        // Cue positions are fractions of the picture, so the layer covers exactly the picture.
+        SubtitleLayer(
+            player,
+            Modifier.align(Alignment.Center).resizeWithContentScale(ContentScale.Fit, presentation.videoSizeDp),
+        )
     }
+}
+
+/**
+ * Subtitles drawn by us instead of media3-ui's SubtitleView (one less dependency): text cues
+ * along the bottom, picture cues (DVB, PGS) where the broadcaster placed them.
+ */
+@OptIn(UnstableApi::class)
+@Composable
+private fun SubtitleLayer(player: Player, modifier: Modifier) {
+    var cues by remember(player) { mutableStateOf(emptyList<Cue>()) }
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onCues(cueGroup: CueGroup) {
+                cues = cueGroup.cues
+            }
+        }
+        player.addListener(listener)
+        onDispose {
+            player.removeListener(listener)
+            cues = emptyList()
+        }
+    }
+    if (cues.isEmpty()) return
+    BoxWithConstraints(modifier) {
+        val w = maxWidth
+        val h = maxHeight
+        cues.filter { it.bitmap != null }.forEach { cue ->
+            val bitmap = cue.bitmap ?: return@forEach
+            val image = remember(bitmap) { bitmap.asImageBitmap() }
+            val width = if (cue.size != Cue.DIMEN_UNSET) w * cue.size else w * 0.8f
+            val height = if (cue.bitmapHeight != Cue.DIMEN_UNSET) h * cue.bitmapHeight else width * (bitmap.height.toFloat() / bitmap.width)
+            val x = (if (cue.position != Cue.DIMEN_UNSET) w * cue.position else w * 0.5f) - width * anchorShift(cue.positionAnchor, Cue.ANCHOR_TYPE_MIDDLE)
+            val y = if (cue.line != Cue.DIMEN_UNSET && cue.lineType == Cue.LINE_TYPE_FRACTION) {
+                h * cue.line - height * anchorShift(cue.lineAnchor, Cue.ANCHOR_TYPE_START)
+            } else {
+                h * 0.92f - height
+            }
+            Image(
+                image,
+                contentDescription = null,
+                contentScale = ContentScale.FillBounds,
+                modifier = Modifier.offset(x, y).size(width, height),
+            )
+        }
+        val lines = cues.mapNotNull { if (it.bitmap == null) it.text?.toString()?.trim()?.takeIf(String::isNotEmpty) else null }
+        if (lines.isNotEmpty()) {
+            Text(
+                lines.joinToString("\n"),
+                style = MaterialTheme.typography.titleLarge,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = h * 0.06f, start = 48.dp, end = 48.dp)
+                    .background(Color.Black.copy(alpha = 0.6f), HindsShapes.Small)
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+            )
+        }
+    }
+}
+
+/** How far back from its position a cue starts, as a fraction of its size. */
+@OptIn(UnstableApi::class)
+private fun anchorShift(anchor: Int, default: Int): Float = when (if (anchor == Cue.TYPE_UNSET) default else anchor) {
+    Cue.ANCHOR_TYPE_MIDDLE -> 0.5f
+    Cue.ANCHOR_TYPE_END -> 1f
+    else -> 0f
 }
 
 /** Stops the TV's screensaver (which would also stop playback) while this is composed. */

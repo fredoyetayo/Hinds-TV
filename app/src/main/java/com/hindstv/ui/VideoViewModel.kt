@@ -85,6 +85,7 @@ data class VodPosition(val positionMs: Long = 0, val durationMs: Long = 0)
 class VideoViewModel(private val app: HindsApp) : ViewModel() {
     private val media = app.container.media
     private val engine = app.container.player
+    private val trackPicker = app.container.trackPicker
 
     val player: Player get() = engine.player
 
@@ -267,7 +268,14 @@ class VideoViewModel(private val app: HindsApp) : ViewModel() {
 
     // --- Details ---------------------------------------------------------------------------------
 
+    /**
+     * The card details were opened from (a video id, or a Continue watching key), so Back lands on
+     * it again instead of at the top of the library. The library consumes it once.
+     */
+    var returnFocusKey: String? = null
+
     fun openDetails(item: VideoItem) {
+        if (_page.value == VideoPageUi.Library) returnFocusKey = item.id
         _page.value = VideoPageUi.Details(item)
         progressJob?.cancel()
         progressJob = viewModelScope.launch { media.progressFor(item.id).collect { _detailsProgress.value = it } }
@@ -301,6 +309,7 @@ class VideoViewModel(private val app: HindsApp) : ViewModel() {
         val item = progress.toVideoItem()
         returnTo = null
         openDetails(item)
+        returnFocusKey = progress.key
         play(item, progress.toEpisode(), ResumePolicy.startPosition(progress.positionMs, progress.durationMs, progress.finished))
     }
 
@@ -376,7 +385,8 @@ class VideoViewModel(private val app: HindsApp) : ViewModel() {
             KeyEvent.KEYCODE_DPAD_RIGHT -> seekBy(SHORT_SKIP_MS)
             KeyEvent.KEYCODE_MEDIA_REWIND -> seekBy(-LONG_SKIP_MS)
             KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> seekBy(LONG_SKIP_MS)
-            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_INFO -> showControls()
+            KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_CAPTIONS -> trackPicker.open()
+            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_INFO -> showControls()
             else -> return false
         }
         return true

@@ -126,6 +126,9 @@ data class WatchProgressEntity(
     val updatedAt: Long,
 )
 
+/** A favourites list with how many channels it holds (Settings). */
+data class ListSummary(val id: Long, val name: String, val sortOrder: Int, val count: Int)
+
 /** What the guide importer needs per channel. */
 data class EpgRef(val channelId: String, val epgId: String?, val name: String)
 
@@ -237,6 +240,15 @@ abstract class ChannelDao {
 
     @Query("SELECT * FROM favorite_lists ORDER BY sortOrder, id")
     abstract suspend fun favoriteListsNow(): List<FavoriteListEntity>
+
+    @Query(
+        "SELECT l.id, l.name, l.sortOrder, (SELECT COUNT(*) FROM favorite_items i WHERE i.listId = l.id) AS count " +
+            "FROM favorite_lists l ORDER BY l.sortOrder, l.id",
+    )
+    abstract fun listSummaries(): Flow<List<ListSummary>>
+
+    @Query("UPDATE favorite_lists SET sortOrder = :order WHERE id = :id")
+    abstract suspend fun setListOrder(id: Long, order: Int)
 
     @Query("SELECT listId FROM favorite_items WHERE channelId = :channelId")
     abstract suspend fun listsContaining(channelId: String): List<Long>

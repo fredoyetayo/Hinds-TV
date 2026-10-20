@@ -58,6 +58,8 @@ import com.hindstv.ui.components.NavSection
 import com.hindstv.ui.components.NavBackHandler
 import com.hindstv.ui.components.TopNav
 import com.hindstv.ui.components.rememberNavBarState
+import com.hindstv.ui.components.pageJumpItem
+import com.hindstv.ui.components.rememberPageJump
 import com.hindstv.ui.components.ProgressLine
 import com.hindstv.ui.components.progress
 import com.hindstv.ui.theme.HindsColors
@@ -202,6 +204,7 @@ private fun ChannelColumn(
     val initialFocus = remember { FocusRequester() }
     var initialFocusDone by remember { mutableStateOf(false) }
     val targetIndex = channels?.indexOfFirst { it.id == playingId }?.coerceAtLeast(0) ?: 0
+    val jump = rememberPageJump(channels?.size ?: 0, page = CHANNEL_PAGE) { listState.scrollToItem((it - 3).coerceAtLeast(0)) }
 
     Column(Modifier.width(560.dp).fillMaxHeight().padding(top = 16.dp)) {
         Row(
@@ -223,7 +226,7 @@ private fun ChannelColumn(
             channels.isEmpty() -> SmallNote(stringResource(R.string.no_channels), HindsColors.Muted)
             else -> LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxSize().focusRestorer().focusGroup(),
+                modifier = Modifier.fillMaxSize().then(jump.modifier).focusRestorer().focusGroup(),
                 contentPadding = PaddingValues(start = 14.dp, end = 14.dp, bottom = 24.dp),
             ) {
                 itemsIndexed(channels, key = { _, c -> c.id }) { index, channel ->
@@ -234,7 +237,8 @@ private fun ChannelColumn(
                         nowSec = nowSec,
                         onClick = { onPlay(channel) },
                         onMenu = { onToggleFavorite(channel.id) },
-                        modifier = if (!initialFocusDone && index == targetIndex) Modifier.focusRequester(initialFocus) else Modifier,
+                        modifier = Modifier.pageJumpItem(jump, index)
+                            .then(if (!initialFocusDone && index == targetIndex) Modifier.focusRequester(initialFocus) else Modifier),
                     )
                 }
             }
@@ -323,3 +327,6 @@ private fun SmallNote(text: String, color: Color) {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 4.dp),
     )
 }
+
+/** ⏪/⏩ in the channel list move this many channels. */
+private const val CHANNEL_PAGE = 10

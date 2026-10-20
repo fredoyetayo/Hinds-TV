@@ -7,6 +7,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
@@ -18,6 +19,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
+import com.hindstv.core.Diagnostics
 import com.hindstv.data.stalker.PortalProfile
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
@@ -63,6 +65,7 @@ class PlayerEngine(private val context: Context, http: OkHttpClient) {
      */
     fun play(url: String, owner: Any?, vod: Boolean = false, startMs: Long = 0) {
         this.owner = owner
+        Diagnostics.add("player", "${if (vod) "video" else "stream"}: $url")
         val item = MediaItem.Builder()
             .setUri(url)
             .apply { if (isHls(url)) setMimeType(MimeTypes.APPLICATION_M3U8) }
@@ -82,6 +85,52 @@ class PlayerEngine(private val context: Context, http: OkHttpClient) {
     }
 
     val hasMedia: Boolean get() = built && player.mediaItemCount > 0
+
+    /** The audio and subtitle tracks of what is playing now. */
+    fun trackChoices(): TrackChoices {
+        if (!built) return TrackChoices(emptyList(), emptyList(), subtitlesOff = true)
+        val groups = player.currentTracks.groups
+        val audio = mutableListOf<TrackOption>()
+        val subtitles = mutableListOf<TrackOption>()
+        groups.forEachIndexed { g, group ->
+            for (t in 0 until group.length) {
+                if (!group.isTrackSupported(t)) continue
+                val f = group.getTrackFormat(t)
+                val id = "$g:$t"
+                when (group.type) {
+                    C.TRACK_TYPE_AUDIO -> audio += TrackOption(
+                        id, TrackLabels.audio(f.language, f.label, f.sampleMimeType, f.channelCount, audio.size), group.isTrackSelected(t),
+                    )
+                    C.TRACK_TYPE_TEXT -> subtitles += TrackOption(
+                        id, TrackLabels.subtitle(f.language, f.label, subtitles.size), group.isTrackSelected(t),
+                    )
+                }
+            }
+        }
+        return TrackChoices(audio, subtitles, subtitlesOff = subtitles.none { it.selected })
+    }
+
+    /**
+     * Picks a track by [TrackOption.id] ([id] null turns subtitles off). Its language becomes the
+     * preference too, so the next channel or video starts in the same language when it has it.
+     */
+    fun selectTrack(type: Int, id: String?) {
+        if (!built) return
+        val params = player.trackSelectionParameters.buildUpon()
+        if (id == null) {
+            params.clearOverridesOfType(type).setTrackTypeDisabled(type, true)
+        } else {
+            val (g, t) = id.split(':').map { it.toInt() }
+            val group = player.currentTracks.groups.getOrNull(g) ?: return
+            if (group.type != type || t !in 0 until group.length) return
+            params.setTrackTypeDisabled(type, false)
+                .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, t))
+            group.getTrackFormat(t).language?.let {
+                if (type == C.TRACK_TYPE_AUDIO) params.setPreferredAudioLanguage(it) else params.setPreferredTextLanguage(it)
+            }
+        }
+        player.trackSelectionParameters = params.build()
+    }
 
     private fun build(): ExoPlayer {
         val liveDataSourceFactory = DataSource.Factory { LiveDataSource(httpFactory.createDataSource()) }
@@ -106,13 +155,32 @@ class PlayerEngine(private val context: Context, http: OkHttpClient) {
             .setTargetBufferBytes(32 * 1024 * 1024)
             .setPrioritizeTimeOverSizeThresholds(false)
             .build()
-        return ExoPlayer.Builder(context, renderers, mediaSourceFactory)
+        val player = ExoPlayer.Builder(context, renderers, mediaSourceFactory)
             .setLoadControl(loadControl)
             .setAudioAttributes(
                 AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),
                 /* handleAudioFocus = */ true,
             )
             .build()
+        player.addListener(object : androidx.media3.common.Player.Listener {
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                val http = generateSequence<Throwable>(error) { it.cause }
+                    .filterIsInstance<androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException>()
+                    .firstOrNull()
+                val detail = http?.let { "HTTP ${it.responseCode}" } ?: error.cause?.let { "${it.javaClass.simpleName}: ${it.message}" }
+                Diagnostics.add("player", "error ${error.errorCodeName}${detail?.let { " ($it)" }.orEmpty()}")
+            }
+
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                val formats = tracks.groups.filter { it.isSelected }.flatMap { g -> (0 until g.length).filter(g::isTrackSelected).map { g.getTrackFormat(it) } }
+                if (formats.isNotEmpty()) {
+                    Diagnostics.add("player", "playing " + formats.joinToString(", ") { f ->
+                        listOfNotNull(f.sampleMimeType, f.width.takeIf { it > 0 }?.let { "${it}x${f.height}" }, f.language).joinToString(" ")
+                    })
+                }
+            }
+        })
+        return player
     }
 
     private fun isHls(url: String): Boolean {

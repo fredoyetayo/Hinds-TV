@@ -74,6 +74,8 @@ class StalkerSource(val client: StalkerClient) : ChannelSource {
 
     override suspend fun radioUrls(cmd: String): List<String> = client.radioUrls(cmd)
 
+    override suspend fun account(): AccountInfo = client.accountInfo().let { AccountInfo(it.expiry, it.plan) }
+
     override suspend fun loadEpg(
         channels: List<EpgChannelRef>,
         fromSec: Long,

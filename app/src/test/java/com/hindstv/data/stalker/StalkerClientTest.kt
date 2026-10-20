@@ -243,6 +243,13 @@ class StalkerClientTest {
     }
 
     @Test
+    fun `reads the account expiry whatever the portal calls it`() = runTest {
+        val account = client().accountInfo()
+        assertEquals("2027-03-01 00:00:00", account.expiry)
+        assertEquals("Premium", account.plan)
+    }
+
+    @Test
     fun `unregistered device reports the portal's message`() = runTest {
         portal.blockMessage = "MAC address not registered"
         try {
@@ -303,6 +310,7 @@ class StalkerClientTest {
                 }
                 "itv/get_epg_info" -> js(EPG)
                 "itv/create_link" -> js("""{"id":"1","cmd":"ffmpeg http://localhost/play/live.php?stream=1&play_token=xyz"}""")
+                "account_info/get_main_info" -> js("""{"phone":"","end_date":"2027-03-01 00:00:00","tariff_plan":"Premium"}""")
                 "vod/get_categories" -> js("""[{"id":"*","title":"All"},{"id":"5","title":"GCSE Maths"},{"id":"6","title":"GCSE Biology"}]""")
                 "vod/get_ordered_list" -> vodList(url)
                 "vod/create_link" ->

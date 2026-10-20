@@ -48,6 +48,20 @@ class ChannelRepository(
 
     suspend fun renameList(listId: Long, name: String) = dao.renameList(listId, name.trim())
 
+    fun listSummaries(): Flow<List<com.hindstv.data.db.ListSummary>> = dao.listSummaries()
+
+    /** Moves a list up ([delta] −1) or down (+1) in the group column. */
+    suspend fun moveList(listId: Long, delta: Int) {
+        val lists = dao.favoriteListsNow().toMutableList()
+        val from = lists.indexOfFirst { it.id == listId }
+        val to = from + delta
+        if (from < 0 || to !in lists.indices) return
+        lists.add(to, lists.removeAt(from))
+        lists.forEachIndexed { i, l -> if (l.sortOrder != i) dao.setListOrder(l.id, i) }
+    }
+
+    suspend fun channelCount(): Int = dao.channelCount()
+
     suspend fun deleteList(listId: Long) = dao.deleteList(listId)
 
     /** Adds the channel to the list or takes it out. Returns true if it is now in the list. */

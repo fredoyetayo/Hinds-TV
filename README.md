@@ -79,12 +79,13 @@ same MAC) while using Hinds TV.
 | Live (TV) button | Open TV guide | Open TV guide |
 | ▶ | Show channel info | Move to channels |
 | ☰ Menu | Add to a favourites list | Add to a favourites list (on a list: rename/delete it) |
-| ⏪ | Previous channel | — |
+| ⏪ | Previous channel | Up 10 channels |
+| ⏩ | Audio & subtitles | Down 10 channels |
 | ⏯ | Stop / resume | — |
 | Back | Press twice to exit | Close list |
 
-Along the top of the channel list, Videos and Radio there are section buttons: **Live · Guide · Videos ·
-Radio · Search · Settings**. However far down a list you are, **Back** jumps straight up to them; Back again
+Along the top of the channel list, VOD, Radio, Search and Settings there are section buttons: **Live ·
+Guide · VOD · Radio · Search · Settings**. However far down a list you are, **Back** jumps straight up to them; Back again
 leaves the screen.
 
 **Favourites lists**
@@ -104,12 +105,26 @@ leaves the screen.
   between Newest and A–Z. Big libraries load as you scroll.
 - On a video: **Resume from 12:31** or **Play from start**. Series show their episodes, with what you've
   watched.
+- In the grid, ⏪ ⏩ jump a page at a time. Back from a video's page lands on the same poster.
 - While playing: ◀ ▶ skip 10 s, ⏪ ⏩ skip 30 s (press repeatedly to go further), Select or ⏯ pause,
-  Back returns to the video's page. Your place is saved every few seconds, when you stop, and when the TV
+  ☰ audio & subtitles, Back returns to the video's page. Your place is saved every few seconds, when you stop, and when the TV
   goes off. Series play the next episode automatically.
 
+**Audio & subtitles**
+- ⏩ while watching live TV, or ☰ while playing a video, lists the audio languages and subtitles your
+  provider sends. The language you pick is used for the next channel or video too, when it has it.
+
+**Settings**
+- **Account:** the server, a partly hidden MAC, the number of channels and when your subscription ends
+  (if your provider says). *Change account* opens the setup form.
+- **Favourites lists:** put them in order, rename or delete them.
+- **Playback:** reverse ▲/▼ so ▲ goes up the on-screen list.
+- **History:** clear Continue watching or recent searches.
+- **Diagnostics:** what your provider and the player said recently. If something won't play, a photo of
+  this page shows why. Your MAC and tokens are never shown.
+
 **Radio**
-- Pick a station; **Stop** and **Screen off** (black screen, music keeps playing; any button turns the
+- Pick a station (⏪ ⏩ jump a page); **Stop** and **Screen off** (black screen, music keeps playing; any button turns the
   picture back on).
 
 Videos and radio use your provider's one connection, so live TV stops while they play and comes back when

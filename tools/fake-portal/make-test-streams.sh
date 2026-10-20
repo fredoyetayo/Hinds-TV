@@ -2,7 +2,8 @@
 # Generates small MPEG-TS test streams for the fake portal (needs ffmpeg on the host).
 # 1.ts: H.264 + AAC. 2.ts: H.264 + MP2 audio (the codec Fire TV can't decode in hardware;
 # exercises the ffmpeg-audio module). 3.ts: MPEG-2 video + MP2, like many SD broadcast feeds.
-# vod.mp4: a 3-minute seekable "lesson" for Videos. radio.mp3: audio for Radio.
+# vod.mp4: a 3-minute seekable "lesson" for Videos (English + French audio, English subtitles).
+# radio.mp3: audio for Radio.
 set -euo pipefail
 out=${1:-build/test-streams}
 mkdir -p "$out"
@@ -14,7 +15,18 @@ ffmpeg "${in_opts[@]}" -f lavfi -i "smptehdbars=size=960x540:rate=25" -f lavfi -
   -c:v libx264 -preset veryfast -g 50 -pix_fmt yuv420p -c:a mp2 -b:a 192k "${out_opts[@]}" "$out/2.ts"
 ffmpeg "${in_opts[@]}" -f lavfi -i "testsrc=size=720x576:rate=25" -f lavfi -i "sine=frequency=880" \
   -c:v mpeg2video -b:v 4M -g 12 -c:a mp2 -b:a 192k "${out_opts[@]}" "$out/3.ts"
+# Two audio languages and English subtitles, for the audio & subtitle picker.
+subs="$out/vod.srt"
+: > "$subs"
+for i in $(seq 0 35); do
+  printf '%d\n00:%02d:%02d,000 --> 00:%02d:%02d,000\nSubtitle line %d\n\n' \
+    $((i + 1)) $((i * 5 / 60)) $((i * 5 % 60)) $(((i * 5 + 4) / 60)) $(((i * 5 + 4) % 60)) $((i + 1)) >> "$subs"
+done
 ffmpeg "${in_opts[@]}" -f lavfi -i "testsrc2=size=960x540:rate=25" -f lavfi -i "sine=frequency=330" \
-  -c:v libx264 -preset veryfast -g 50 -pix_fmt yuv420p -c:a aac -b:a 128k -t 180 -movflags +faststart "$out/vod.mp4"
+  -f lavfi -i "sine=frequency=550" -i "$subs" \
+  -map 0:v -map 1:a -map 2:a -map 3:s -c:v libx264 -preset veryfast -g 50 -pix_fmt yuv420p \
+  -c:a aac -b:a 128k -ac 2 -c:s mov_text -metadata:s:a:0 language=eng -metadata:s:a:1 language=fra \
+  -metadata:s:s:0 language=eng -t 180 -movflags +faststart "$out/vod.mp4"
+rm -f "$subs"
 ffmpeg "${in_opts[@]}" -f lavfi -i "sine=frequency=520:beep_factor=4" -c:a libmp3lame -b:a 128k -t 120 "$out/radio.mp3"
 ls -la "$out"

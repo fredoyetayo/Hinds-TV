@@ -61,6 +61,8 @@ data class StalkerEpisode(
     val series: Int?,
 )
 
+data class StalkerAccount(val expiry: String?, val plan: String?)
+
 data class StalkerRadio(val id: String, val name: String, val number: Int, val cmd: String, val logo: String?)
 
 /** Failures the UI can explain to the user. All extend IOException so callers can catch broadly. */

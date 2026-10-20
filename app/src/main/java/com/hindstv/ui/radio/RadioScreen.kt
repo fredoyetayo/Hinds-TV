@@ -15,7 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -51,6 +52,8 @@ import com.hindstv.ui.components.PillButton
 import com.hindstv.ui.components.NavBackHandler
 import com.hindstv.ui.components.TopNav
 import com.hindstv.ui.components.rememberNavBarState
+import com.hindstv.ui.components.pageJumpItem
+import com.hindstv.ui.components.rememberPageJump
 import com.hindstv.ui.components.focusRing
 import com.hindstv.ui.components.requestFocusSoon
 import com.hindstv.ui.theme.HindsColors
@@ -80,6 +83,8 @@ fun RadioScreen(vm: RadioViewModel, onNavigate: (NavSection) -> Unit, onExit: ()
             modifier = Modifier.padding(horizontal = 48.dp).padding(bottom = 10.dp),
         )
         val list = stations
+        val gridState = rememberLazyGridState()
+        val jump = rememberPageJump(list?.size ?: 0, page = RADIO_COLUMNS * 2) { gridState.scrollToItem(it) }
         when {
             list == null -> Unit
             list.isEmpty() -> Text(
@@ -89,18 +94,19 @@ fun RadioScreen(vm: RadioViewModel, onNavigate: (NavSection) -> Unit, onExit: ()
                 modifier = Modifier.padding(horizontal = 48.dp),
             )
             else -> LazyVerticalGrid(
-                columns = GridCells.Fixed(7),
+                columns = GridCells.Fixed(RADIO_COLUMNS),
+                state = gridState,
                 contentPadding = PaddingValues(start = 48.dp, end = 48.dp, bottom = 32.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().then(jump.modifier),
             ) {
-                items(list, key = { it.id }) { station ->
+                itemsIndexed(list, key = { _, s -> s.id }) { index, station ->
                     StationTile(
                         station,
                         playing = playing?.station?.id == station.id,
                         onClick = { vm.play(station) },
-                        modifier = if (station == list.first()) Modifier.focusRequester(firstFocus) else Modifier,
+                        modifier = Modifier.pageJumpItem(jump, index).then(if (index == 0) Modifier.focusRequester(firstFocus) else Modifier),
                     )
                 }
             }
@@ -202,3 +208,5 @@ private fun StationTile(station: RadioEntity, playing: Boolean, onClick: () -> U
         )
     }
 }
+
+private const val RADIO_COLUMNS = 7

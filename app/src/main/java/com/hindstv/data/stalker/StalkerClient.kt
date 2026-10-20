@@ -1,5 +1,6 @@
 package com.hindstv.data.stalker
 
+import com.hindstv.core.Diagnostics
 import com.hindstv.core.await
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -287,6 +288,17 @@ class StalkerClient(
         }
     }
 
+    /**
+     * Subscription details (`account_info/get_main_info`). Portals put the expiry date under
+     * different names; the first one that looks like a date wins.
+     */
+    suspend fun accountInfo(): StalkerAccount = authed { ep, tok ->
+        val obj = request(ep, tok, "type" to "account_info", "action" to "get_main_info") as? JsonObject
+            ?: return@authed StalkerAccount(null, null)
+        val expiry = EXPIRY_KEYS.firstNotNullOfOrNull { key -> obj.string(key)?.takeIf { it.any(Char::isDigit) && it != "0" } }
+        StalkerAccount(expiry = expiry, plan = obj.string("tariff_plan") ?: obj.string("tariff"))
+    }
+
     /** Keep-alive the portal expects every `timeslot` seconds while the app is in use. */
     suspend fun watchdog() {
         authed { ep, tok ->
@@ -428,14 +440,27 @@ class StalkerClient(
         }.build()
         val request = Request.Builder().url(url).headers(portalHeaders(ep, tok)).get().build()
         val client = if (probe) probeHttp else http
-        return withContext(Dispatchers.IO) { client.newCall(request).await().use { response -> parseResponse(response, ep, tok, maxBytes) } }
+        val call = params.firstOrNull { it.first == "type" }?.second + "/" + params.firstOrNull { it.first == "action" }?.second
+        return withContext(Dispatchers.IO) {
+            try {
+                client.newCall(request).await().use { response -> parseResponse(response, ep, tok, maxBytes, call) }
+            } catch (e: java.io.IOException) {
+                if (call != "watchdog/get_events") Diagnostics.add("portal", "$call failed: ${e.javaClass.simpleName}: ${e.message}")
+                throw e
+            }
+        }
     }
 
-    private fun parseResponse(response: Response, ep: HttpUrl, tok: String?, maxBytes: Long): JsonElement {
+    private fun parseResponse(response: Response, ep: HttpUrl, tok: String?, maxBytes: Long, call: String): JsonElement {
         // Bounded read: a portal returning far more than expected must not exhaust a 2 GB stick.
         val source = response.body.source()
         if (source.request(maxBytes + 1)) throw StalkerException.BadResponse("Portal response too large")
         val body = source.buffer.readUtf8()
+        if (call !in QUIET_CALLS) {
+            // Big lists are logged by size only; the short answers (links, profile) are what explain failures.
+            val detail = if (call in LIST_CALLS) "${body.length} bytes" else body.take(DIAG_BODY_CHARS).replace('\n', ' ')
+            Diagnostics.add("portal", "$call → HTTP ${response.code}: $detail")
+        }
         when (response.code) {
             in 200..299 -> Unit
             401 -> throw StalkerException.AuthFailed("HTTP 401")
@@ -504,6 +529,13 @@ class StalkerClient(
 
     companion object {
         const val MIN_REAUTH_INTERVAL_MS = 60_000L
+        private const val DIAG_BODY_CHARS = 200
+        private val EXPIRY_KEYS = listOf("end_date", "exp_date", "expire_billing_date", "tariff_expired_date", "phone")
+        private val QUIET_CALLS = setOf("watchdog/get_events")
+        private val LIST_CALLS = setOf(
+            "itv/get_all_channels", "itv/get_ordered_list", "itv/get_epg_info", "itv/get_genres",
+            "vod/get_ordered_list", "vod/get_categories", "radio/get_ordered_list",
+        )
         private const val MAX_RESPONSE_BYTES = 48L * 1024 * 1024
         private const val MAX_EPG_BYTES = 40L * 1024 * 1024
         private const val PAGE_PARALLELISM = 4
