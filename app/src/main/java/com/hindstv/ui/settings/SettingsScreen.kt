@@ -1,18 +1,24 @@
 package com.hindstv.ui.settings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,9 +33,11 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.MaterialTheme
@@ -47,11 +55,16 @@ import com.hindstv.ui.components.NavSection
 import com.hindstv.ui.components.PillButton
 import com.hindstv.ui.components.TopNav
 import com.hindstv.ui.components.focusColors
+import com.hindstv.ui.components.focusRing
 import com.hindstv.ui.components.rememberNavBarState
 import com.hindstv.ui.components.requestFocusSoon
+import com.hindstv.ui.theme.DarkPalette
 import com.hindstv.ui.theme.HindsColors
+import com.hindstv.ui.theme.HindsPalette
 import com.hindstv.ui.theme.HindsShapes
 import com.hindstv.ui.theme.HindsStyle
+import com.hindstv.ui.theme.LightPalette
+import com.hindstv.ui.theme.ThemeMode
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -100,6 +113,7 @@ fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 when (section) {
+                    SettingsSection.Appearance -> AppearancePane(vm)
                     SettingsSection.Account -> AccountPane(vm, onChangeAccount, onRefreshChannels)
                     SettingsSection.Favourites -> FavouritesPane(vm, onEditList)
                     SettingsSection.Playback -> PlaybackPane(vm)
@@ -116,6 +130,7 @@ fun SettingsScreen(
 }
 
 private fun SettingsSection.label() = when (this) {
+    SettingsSection.Appearance -> R.string.settings_appearance
     SettingsSection.Account -> R.string.settings_account
     SettingsSection.Favourites -> R.string.settings_favourites
     SettingsSection.Playback -> R.string.settings_playback
@@ -139,6 +154,96 @@ private fun Field(label: String, value: String) {
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(label, style = MaterialTheme.typography.bodyLarge, color = HindsColors.Muted, modifier = Modifier.width(180.dp))
         Text(value, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun AppearancePane(vm: SettingsViewModel) {
+    val mode by vm.themeMode.collectAsStateWithLifecycle()
+    PaneTitle(stringResource(R.string.settings_appearance))
+    Hint(stringResource(R.string.appearance_hint))
+    Text(
+        stringResource(R.string.appearance_theme),
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(top = 8.dp),
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        ThemeMode.entries.forEach { option ->
+            val (label, hint) = when (option) {
+                ThemeMode.Dark -> R.string.theme_dark to R.string.theme_dark_hint
+                ThemeMode.Light -> R.string.theme_light to R.string.theme_light_hint
+                ThemeMode.Auto -> R.string.theme_auto to R.string.theme_auto_hint
+            }
+            ThemeCard(option, stringResource(label), stringResource(hint), selected = option == mode) { vm.setThemeMode(option) }
+        }
+    }
+}
+
+/** A theme option: a mini preview of that palette, a check when chosen, and a caption. Selecting applies it at once. */
+@Composable
+private fun ThemeCard(mode: ThemeMode, label: String, hint: String, selected: Boolean, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    Column(Modifier.width(186.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Surface(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth().height(90.dp).onFocusChanged { focused = it.isFocused },
+            shape = ClickableSurfaceDefaults.shape(HindsShapes.Card),
+            colors = ClickableSurfaceDefaults.colors(
+                containerColor = HindsColors.Surface,
+                focusedContainerColor = HindsColors.Surface,
+                pressedContainerColor = HindsColors.Surface,
+            ),
+            border = focusRing(
+                focused,
+                HindsShapes.Card,
+                idle = Border(BorderStroke(1.dp, HindsColors.Hairline), inset = 0.dp, shape = HindsShapes.Card),
+            ),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+        ) {
+            Row(Modifier.fillMaxSize()) {
+                when (mode) {
+                    ThemeMode.Dark -> ThemePreview(DarkPalette, Modifier.weight(1f))
+                    ThemeMode.Light -> ThemePreview(LightPalette, Modifier.weight(1f))
+                    ThemeMode.Auto -> {
+                        ThemePreview(DarkPalette, Modifier.weight(1f), compact = true)
+                        ThemePreview(LightPalette, Modifier.weight(1f), compact = true)
+                    }
+                }
+            }
+            if (selected) {
+                Box(
+                    Modifier.align(Alignment.TopEnd).padding(7.dp).size(20.dp).background(HindsColors.Accent, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("✓", style = MaterialTheme.typography.labelMedium, color = HindsColors.OnAccent)
+                }
+            }
+        }
+        Text(
+            label,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = if (selected) HindsColors.Accent else HindsColors.Text,
+            modifier = Modifier.padding(horizontal = 2.dp),
+        )
+        Text(hint, style = MaterialTheme.typography.bodySmall, color = HindsColors.Muted, modifier = Modifier.padding(horizontal = 2.dp))
+    }
+}
+
+/** A sketch of a screen in [p]: eyebrow, title, a line, a button and a row of tiles. Plain boxes, nothing to decode. */
+@Composable
+private fun ThemePreview(p: HindsPalette, modifier: Modifier, compact: Boolean = false) {
+    Column(modifier.fillMaxHeight().background(p.background).padding(start = if (compact) 8.dp else 11.dp, top = 13.dp)) {
+        Box(Modifier.size(32.dp, 4.dp).background(p.accent, HindsShapes.Pill))
+        Box(Modifier.padding(top = 5.dp).size(if (compact) 60.dp else 75.dp, 10.dp).background(p.text, RoundedCornerShape(3.dp)))
+        Box(Modifier.padding(top = 5.dp).size(if (compact) 50.dp else 60.dp, 4.dp).background(p.muted, HindsShapes.Pill))
+        Box(Modifier.padding(top = 8.dp).size(if (compact) 32.dp else 36.dp, 11.dp).background(p.focus, HindsShapes.Pill))
+        Row(Modifier.padding(top = 9.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            repeat(if (compact) 3 else 4) {
+                Box(Modifier.size(if (compact) 23.dp else 36.dp, 13.dp).background(p.plate, RoundedCornerShape(3.dp)))
+            }
+        }
     }
 }
 

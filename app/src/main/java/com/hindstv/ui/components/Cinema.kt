@@ -43,6 +43,7 @@ import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.hindstv.R
 import com.hindstv.ui.theme.HindsColors
+import com.hindstv.ui.theme.LocalHindsPalette
 import com.hindstv.ui.theme.HindsShapes
 
 /** The app's sections, shown as pills along the top of every browsing screen. */
@@ -126,7 +127,7 @@ fun TopNav(
     }
 }
 
-/** Rounded pill button: gold when [primary], otherwise a quiet translucent fill. */
+/** Rounded pill button: Accent when [primary], otherwise a quiet translucent fill. */
 @Composable
 fun PillButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, primary: Boolean = false) {
     var focused by remember { mutableStateOf(false) }
@@ -136,7 +137,7 @@ fun PillButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier,
         shape = ClickableSurfaceDefaults.shape(HindsShapes.Pill),
         colors = focusColors(
             focused,
-            container = if (primary) HindsColors.Accent else Color.White.copy(alpha = 0.12f),
+            container = if (primary) HindsColors.Accent else HindsColors.Chip,
             content = if (primary) HindsColors.OnAccent else HindsColors.Text,
         ),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
@@ -153,14 +154,15 @@ fun PillButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier,
 /** Artwork, or a calm coloured tile with initials when the provider has none. */
 @Composable
 fun Artwork(url: String?, title: String, modifier: Modifier = Modifier) {
-    Box(modifier.background(tileColor(title)), contentAlignment = Alignment.Center) {
+    val light = LocalHindsPalette.current.isLight
+    Box(modifier.background(tileColor(title, light)), contentAlignment = Alignment.Center) {
         if (url != null) {
             AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         } else {
             Text(
                 remember(title) { initialsOf(title) },
                 style = MaterialTheme.typography.headlineSmall,
-                color = HindsColors.Text.copy(alpha = 0.85f),
+                color = if (light) HindsColors.Muted else HindsColors.Text.copy(alpha = 0.85f),
             )
         }
     }
@@ -289,8 +291,16 @@ private val TILE_COLOURS = listOf(
     Color(0xFF4A2F2F), Color(0xFF2F3A4A), Color(0xFF3D3524), Color(0xFF2A3B36),
 )
 
+private val LIGHT_TILE_COLOURS = listOf(
+    Color(0xFFE4DDF0), Color(0xFFD9E6EF), Color(0xFFDCEBE2), Color(0xFFF0E6D6),
+    Color(0xFFF1DEDC), Color(0xFFDDE3EE), Color(0xFFEDE7D5), Color(0xFFDAE8E4),
+)
+
 /** A stable colour per title so a library without artwork still looks intentional. */
-fun tileColor(title: String): Color = TILE_COLOURS[(title.hashCode() and 0x7fffffff) % TILE_COLOURS.size]
+fun tileColor(title: String, light: Boolean = false): Color {
+    val colours = if (light) LIGHT_TILE_COLOURS else TILE_COLOURS
+    return colours[(title.hashCode() and 0x7fffffff) % colours.size]
+}
 
 fun initialsOf(name: String): String =
     name.split(' ', '-', '_', ':').filter { it.isNotBlank() && it.first().isLetterOrDigit() }

@@ -9,6 +9,7 @@ import com.hindstv.HindsApp
 import com.hindstv.core.Diagnostics
 import com.hindstv.data.db.ListSummary
 import com.hindstv.data.source.SourceProfile
+import com.hindstv.ui.theme.ThemeMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -17,7 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-enum class SettingsSection { Account, Favourites, Playback, History, Diagnostics, About }
+enum class SettingsSection { Appearance, Account, Favourites, Playback, History, Diagnostics, About }
 
 /** The account as shown in Settings. Identifiers are masked: the screen may end up in a photo. */
 data class AccountUi(
@@ -34,13 +35,13 @@ data class AccountUi(
 
 enum class SourceKind { Portal, Playlist }
 
-/** Settings: account, favourites lists, playback options, history, diagnostics and about. */
+/** Settings: appearance, account, favourites lists, playback options, history, diagnostics and about. */
 class SettingsViewModel(app: HindsApp) : ViewModel() {
     private val container = app.container
     private val store = container.profileStore
     private val channels = container.channels
 
-    private val _section = MutableStateFlow(SettingsSection.Account)
+    private val _section = MutableStateFlow(SettingsSection.Appearance)
     val section: StateFlow<SettingsSection> = _section.asStateFlow()
 
     private val _account = MutableStateFlow<AccountUi?>(null)
@@ -51,6 +52,8 @@ class SettingsViewModel(app: HindsApp) : ViewModel() {
 
     private val _invertUpDown = MutableStateFlow(store.invertUpDown)
     val invertUpDown: StateFlow<Boolean> = _invertUpDown.asStateFlow()
+
+    val themeMode: StateFlow<ThemeMode> = container.themeMode.asStateFlow()
 
     private val _diagnostics = MutableStateFlow(Diagnostics.recent())
     val diagnostics: StateFlow<List<Diagnostics.Entry>> = _diagnostics.asStateFlow()
@@ -103,6 +106,11 @@ class SettingsViewModel(app: HindsApp) : ViewModel() {
     fun setInvertUpDown(invert: Boolean) {
         store.invertUpDown = invert
         _invertUpDown.value = invert
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        store.themeMode = mode.name
+        container.themeMode.value = mode
     }
 
     fun clearResumeHistory(done: String) {

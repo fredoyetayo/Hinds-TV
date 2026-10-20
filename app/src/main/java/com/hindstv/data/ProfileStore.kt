@@ -99,6 +99,11 @@ class ProfileStore(context: Context) {
         get() = prefs.getString(KEY_GUIDE_GROUP, null)
         set(value) = prefs.edit { putString(KEY_GUIDE_GROUP, value) }
 
+    /** Settings → Appearance → Theme, by `ThemeMode` name ("Dark", "Light", "Auto"). */
+    var themeMode: String?
+        get() = prefs.getString(KEY_THEME_MODE, null)
+        set(value) = prefs.edit { putString(KEY_THEME_MODE, value) }
+
     var lastSyncAt: Long
         get() = prefs.getLong(KEY_LAST_SYNC, 0L)
         set(value) = prefs.edit { putLong(KEY_LAST_SYNC, value) }
@@ -128,6 +133,7 @@ class ProfileStore(context: Context) {
         const val KEY_RECENT_SEARCHES = "recent_searches"
         const val KEY_GUIDE_GROUP = "guide_group"
         const val KEY_INVERT = "invert_up_down"
+        const val KEY_THEME_MODE = "theme_mode"
         const val LEGACY_FAVORITES = "__favorites"
         const val KEY_LAST_GENRE = "last_genre"
         const val KEY_LAST_SYNC = "last_sync"

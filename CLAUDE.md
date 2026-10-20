@@ -77,7 +77,7 @@ app/src/main/java/com/hindstv/
   ui/VideoViewModel.kt         Videos: library rows, details/episodes, video player keys, resume saving
   ui/RadioViewModel.kt         Radio: stations, playback, ICY now-playing, screen off
   ui/SearchViewModel.kt        search as you type: channels, guide programmes, videos (portal search), radio
-  ui/SettingsViewModel.kt      Settings: account (+ account_info expiry), lists order, ▲/▼ invert, history,
+  ui/SettingsViewModel.kt      Settings: appearance (theme), account (+ account_info expiry), lists order, ▲/▼ invert, history,
                                diagnostics; maskMac/hostOf (tested)
   ui/TrackPicker.kt            app-wide "Audio & subtitles" dialog state over the one PlayerEngine
   ui/MainActivity.kt           full-screen remote handling in dispatchKeyEvent; lifecycle → VM
@@ -93,7 +93,9 @@ app/src/main/java/com/hindstv/
   ui/components/               TvTextField (D-pad-safe input), Common (clock, logo, progress, VideoSurface),
                                Cinema (TopNav pills, PillButton, PosterCard, Artwork, LevelBars, formats),
                                PageJump (⏪⏩ page jumps in lazy lists/grids; also "focus this index")
-  ui/theme/Theme.kt            "Cinema" palette (near-black, gold accent), Manrope type, focus styling
+  ui/theme/Theme.kt            HindsPalette: Dark ("Cinema", gold accent) and Light ("Daylight", blue accent) via
+                               LocalHindsPalette; HindsColors.* are @Composable getters. Manrope type, focus styling
+  ui/theme/ThemeMode.kt        Dark | Light | Auto (Light 07:00–19:00, re-checked on the minute tick; pure, tested)
 ffmpeg-audio/                  Media3 FFmpeg *audio* decoder (MP2/AC3/E-AC3/DTS/TrueHD), prebuilt LGPL .so
 tools/fake-portal/             fake Stalker portal + test streams for development without a subscription
 ```
@@ -134,6 +136,9 @@ tools/fake-portal/             fake Stalker portal + test streams for developmen
 - **Audio & subtitles.** `PlayerEngine.trackChoices()/selectTrack()`: a pick is a `TrackSelectionOverride`
   plus the preferred language, so the next channel keeps it. Subtitles are drawn by `SubtitleLayer` in
   `VideoSurface` (text along the bottom, bitmap DVB/PGS cues where placed); no media3-ui dependency.
+- **Theme.** `AppContainer.themeMode` (saved as `theme_mode`) → `AppViewModel.lightTheme` → `HindsTheme(light)`.
+  Read colours through `HindsColors` in composables; a `DrawScope` takes the palette as a parameter
+  (`GuideOverlay.drawGuide`). Video areas and subtitles stay black/white in both themes. Design: `docs/design/`.
 - **Settings.** Its own `Screen`; "Change account" opens Setup, whose Cancel returns to Settings. Diagnostics
   shows `Diagnostics.recent()`: `StalkerClient` logs each call's HTTP code and a short redacted body (list
   calls by size only; not the watchdog), `PlayerEngine` logs URLs played, errors and selected formats.

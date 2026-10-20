@@ -36,7 +36,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { HindsTheme { HindsRoot(vm, videoVm, radioVm, searchVm, settingsVm, (application as HindsApp).container.trackPicker) } }
+        setContent {
+            val light by vm.lightTheme.collectAsStateWithLifecycle()
+            HindsTheme(light) { HindsRoot(vm, videoVm, radioVm, searchVm, settingsVm, (application as HindsApp).container.trackPicker) }
+        }
     }
 
     override fun onStart() {

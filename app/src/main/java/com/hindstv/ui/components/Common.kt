@@ -73,7 +73,7 @@ fun ProgressLine(fraction: Float, modifier: Modifier = Modifier, height: Dp = 3.
         modifier
             .height(height)
             .clip(HindsShapes.Pill)
-            .background(HindsColors.Hairline),
+            .background(HindsColors.Track),
     ) {
         Box(
             Modifier

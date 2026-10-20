@@ -54,6 +54,8 @@ import com.hindstv.ui.components.formatDay
 import com.hindstv.ui.components.formatTime
 import com.hindstv.ui.components.timeRange
 import com.hindstv.ui.theme.HindsColors
+import com.hindstv.ui.theme.HindsPalette
+import com.hindstv.ui.theme.LocalHindsPalette
 import kotlin.math.max
 import kotlin.math.min
 
@@ -82,6 +84,7 @@ fun GuideOverlay(vm: AppViewModel) {
     var visibleRows by remember { mutableIntStateOf(6) }
     val focusRequester = remember { FocusRequester() }
     val measurer = rememberTextMeasurer(cacheSize = 96)
+    val palette = LocalHindsPalette.current
     val noGuideText = stringResource(R.string.no_guide)
 
     // A different group starts again at its top (or on the playing channel if it is in it).
@@ -180,6 +183,7 @@ fun GuideOverlay(vm: AppViewModel) {
                     rowHeight = rowHeight.toPx(),
                     timelineHeight = timelineHeight.toPx(),
                     noGuide = noGuideText,
+                    colors = palette,
                 )
             }
             Text(
@@ -244,6 +248,7 @@ private fun DrawScope.drawGuide(
     rowHeight: Float,
     timelineHeight: Float,
     noGuide: String,
+    colors: HindsPalette,
 ) {
     val channelWidth = 220.dp.toPx()
     val gridLeft = channelWidth
@@ -253,7 +258,7 @@ private fun DrawScope.drawGuide(
     val radius = CornerRadius(8.dp.toPx())
     fun xOf(t: Long) = gridLeft + (t - windowStart).toFloat() / SPAN_S * gridWidth
 
-    val label = TextStyle(fontSize = 13.sp, color = HindsColors.Muted)
+    val label = TextStyle(fontSize = 13.sp, color = colors.muted)
     val titleStyle = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium)
     val timeStyle = TextStyle(fontSize = 12.sp)
 
@@ -262,7 +267,7 @@ private fun DrawScope.drawGuide(
     while (t < windowStart + SPAN_S) {
         val x = xOf(t)
         drawText(measurer, formatTime(t), Offset(x + 6.dp.toPx(), 4.dp.toPx()), label)
-        drawLine(HindsColors.Hairline, Offset(x, timelineHeight - 6.dp.toPx()), Offset(x, timelineHeight), 1.dp.toPx())
+        drawLine(colors.hairline, Offset(x, timelineHeight - 6.dp.toPx()), Offset(x, timelineHeight), 1.dp.toPx())
         t += SLOT_S
     }
 
@@ -272,11 +277,11 @@ private fun DrawScope.drawGuide(
         val cellHeight = rowHeight - gap
 
         // Channel cell
-        if (isFocusedRow) drawRoundRect(HindsColors.SurfaceRaised, Offset(0f, top), Size(channelWidth - gap, cellHeight), radius)
+        if (isFocusedRow) drawRoundRect(colors.surfaceRaised, Offset(0f, top), Size(channelWidth - gap, cellHeight), radius)
         val number = if (channel.number > 0) channel.number.toString() else ""
         drawText(measurer, number, Offset(pad, top + (cellHeight - 18.sp.toPx()) / 2), label)
         drawSingleLine(
-            measurer, channel.name, titleStyle.copy(color = HindsColors.Text),
+            measurer, channel.name, titleStyle.copy(color = colors.text),
             Offset(pad + 44.dp.toPx(), top + (cellHeight - 20.sp.toPx()) / 2),
             (channelWidth - pad * 2 - 44.dp.toPx()).toInt(),
         )
@@ -284,11 +289,11 @@ private fun DrawScope.drawGuide(
         // Programme cells
         val list = programmes[channel.id].orEmpty().filter { it.stop > windowStart && it.start < windowStart + SPAN_S }
         if (list.isEmpty()) {
-            val bg = if (isFocusedRow) HindsColors.Focus else HindsColors.Surface
+            val bg = if (isFocusedRow) colors.focus else colors.surface
             drawRoundRect(bg, Offset(gridLeft, top), Size(gridWidth, cellHeight), radius)
             drawSingleLine(
                 measurer, noGuide,
-                timeStyle.copy(color = if (isFocusedRow) HindsColors.OnFocus else HindsColors.Faint),
+                timeStyle.copy(color = if (isFocusedRow) colors.onFocus else colors.faint),
                 Offset(gridLeft + pad, top + (cellHeight - 16.sp.toPx()) / 2), (gridWidth - pad * 2).toInt(),
             )
         }
@@ -299,21 +304,21 @@ private fun DrawScope.drawGuide(
             val isFocused = isFocusedRow && p.start <= focusTime && p.stop > focusTime
             val airing = p.start <= nowSec && p.stop > nowSec
             val bg = when {
-                isFocused -> HindsColors.Focus
-                airing -> HindsColors.SurfaceRaised
-                else -> HindsColors.Surface
+                isFocused -> colors.focus
+                airing -> colors.surfaceRaised
+                else -> colors.surface
             }
             drawRoundRect(bg, Offset(x0, top), Size(x1 - x0, cellHeight), radius)
             val textWidth = (x1 - x0 - pad * 2).toInt()
             if (textWidth > 12) {
                 val fg = when {
-                    isFocused -> HindsColors.OnFocus
-                    p.stop <= nowSec -> HindsColors.Faint
-                    else -> HindsColors.Text
+                    isFocused -> colors.onFocus
+                    p.stop <= nowSec -> colors.faint
+                    else -> colors.text
                 }
                 drawSingleLine(measurer, p.title, titleStyle.copy(color = fg), Offset(x0 + pad, top + 6.dp.toPx()), textWidth)
                 drawSingleLine(
-                    measurer, p.timeRange(), timeStyle.copy(color = if (isFocused) HindsColors.OnFocus.copy(alpha = 0.7f) else HindsColors.Muted),
+                    measurer, p.timeRange(), timeStyle.copy(color = if (isFocused) colors.onFocus.copy(alpha = 0.7f) else colors.muted),
                     Offset(x0 + pad, top + cellHeight - 20.dp.toPx()), textWidth,
                 )
             }
@@ -323,8 +328,8 @@ private fun DrawScope.drawGuide(
     // "Now" marker
     if (nowSec in windowStart until windowStart + SPAN_S) {
         val x = xOf(nowSec)
-        drawLine(HindsColors.Accent, Offset(x, timelineHeight - 6.dp.toPx()), Offset(x, timelineHeight + rows.size * rowHeight), 2.dp.toPx())
-        drawCircle(HindsColors.Accent, 4.dp.toPx(), Offset(x, timelineHeight - 6.dp.toPx()))
+        drawLine(colors.accent, Offset(x, timelineHeight - 6.dp.toPx()), Offset(x, timelineHeight + rows.size * rowHeight), 2.dp.toPx())
+        drawCircle(colors.accent, 4.dp.toPx(), Offset(x, timelineHeight - 6.dp.toPx()))
     }
 }
 

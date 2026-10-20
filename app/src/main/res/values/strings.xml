@@ -123,6 +123,15 @@
     <string name="vod_no_picture">This video didn\'t start: your provider isn\'t sending it right now.</string>
     <string name="settings_title">Settings</string>
     <string name="settings_account">Account</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="appearance_hint">Changes apply straight away, everywhere in Hinds TV.</string>
+    <string name="appearance_theme">Theme</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_auto">Automatic</string>
+    <string name="theme_dark_hint">Best for evenings and dark rooms</string>
+    <string name="theme_light_hint">Best for bright, sunny rooms</string>
+    <string name="theme_auto_hint">Light 07:00–19:00, dark after</string>
     <string name="settings_favourites">Favourites lists</string>
     <string name="settings_playback">Playback</string>
     <string name="settings_history">History</string>

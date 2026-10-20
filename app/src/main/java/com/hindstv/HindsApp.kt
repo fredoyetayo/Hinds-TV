@@ -19,6 +19,8 @@ import com.hindstv.data.source.StalkerSource
 import com.hindstv.data.stalker.StalkerClient
 import com.hindstv.player.PlayerEngine
 import com.hindstv.ui.TrackPicker
+import com.hindstv.ui.theme.ThemeMode
+import kotlinx.coroutines.flow.MutableStateFlow
 import okio.Path.Companion.toOkioPath
 
 class HindsApp : Application(), SingletonImageLoader.Factory {
@@ -49,6 +51,9 @@ class AppContainer(private val app: Application) {
     val media by lazy { MediaRepository(database.mediaDao()) { source() } }
     val player by lazy { PlayerEngine(app, http) }
     val trackPicker by lazy { TrackPicker(player) }
+
+    /** Shared by Settings (which changes it) and the activity (which applies it). */
+    val themeMode by lazy { MutableStateFlow(ThemeMode.parse(profileStore.themeMode)) }
 
     @Volatile private var source: ChannelSource? = null
     @Volatile private var sourceProfile: SourceProfile? = null

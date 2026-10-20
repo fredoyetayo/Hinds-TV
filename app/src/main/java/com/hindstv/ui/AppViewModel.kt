@@ -20,6 +20,7 @@ import com.hindstv.data.stalker.PortalProfile
 import com.hindstv.data.stalker.StalkerClient
 import com.hindstv.player.ZapController
 import kotlinx.coroutines.CancellationException
+import java.util.Calendar
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -180,6 +181,12 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
             delay(60_000 - nowMs % 60_000)
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, System.currentTimeMillis() / 1000)
+
+    /** Whether the light palette applies now: Automatic re-checks on the minute tick. */
+    val lightTheme: StateFlow<Boolean> = combine(container.themeMode, minute) { mode, now ->
+        mode.isLight(Calendar.getInstance().apply { timeInMillis = now * 1000 }.get(Calendar.HOUR_OF_DAY))
+    }.distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, container.themeMode.value.isLight(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)))
 
     /** What is on now, per channel id (for the channel list). */
     val onAir: StateFlow<Map<String, ProgrammeEntity>> = combine(minute, _epgRevision) { now, _ -> now }
