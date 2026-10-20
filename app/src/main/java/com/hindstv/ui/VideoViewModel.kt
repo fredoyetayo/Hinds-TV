@@ -304,13 +304,14 @@ class VideoViewModel(private val app: HindsApp) : ViewModel() {
         _page.value = VideoPageUi.Library
     }
 
-    /** "Continue watching": straight back into the video where it stopped. */
-    fun resume(progress: WatchProgressEntity) {
+    /** "Continue watching": straight back into the video where it stopped (or from the start). */
+    fun resume(progress: WatchProgressEntity, fromStart: Boolean = false) {
         val item = progress.toVideoItem()
         returnTo = null
         openDetails(item)
         returnFocusKey = progress.key
-        play(item, progress.toEpisode(), ResumePolicy.startPosition(progress.positionMs, progress.durationMs, progress.finished))
+        val start = if (fromStart) 0L else ResumePolicy.startPosition(progress.positionMs, progress.durationMs, progress.finished)
+        play(item, progress.toEpisode(), start)
     }
 
     // --- Playback --------------------------------------------------------------------------------

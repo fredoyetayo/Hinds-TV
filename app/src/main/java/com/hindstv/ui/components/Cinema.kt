@@ -48,6 +48,7 @@ import com.hindstv.ui.theme.HindsShapes
 
 /** The app's sections, shown as pills along the top of every browsing screen. */
 enum class NavSection(val label: Int) {
+    Home(R.string.nav_home),
     Live(R.string.nav_live),
     Guide(R.string.nav_guide),
     Videos(R.string.nav_videos),

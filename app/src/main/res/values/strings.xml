@@ -52,6 +52,7 @@
     <string name="stopped">Stopped. Press ⏯ to resume.</string>
     <string name="error_retry_hint">Press ⏯ to try again, or Select to pick another channel.</string>
 
+    <string name="nav_home">Home</string>
     <string name="nav_live">Live</string>
     <string name="nav_guide">Guide</string>
     <string name="nav_videos">VOD</string>
@@ -73,6 +74,14 @@
     <string name="episodes_loading">Loading episodes…</string>
     <string name="watched">Watched</string>
     <string name="up_next">Up next</string>
+    <string name="next_up">Next up</string>
+    <string name="episode_number">Episode %1$d</string>
+    <string name="group_recent">Recently watched</string>
+    <string name="home_add_hint">Press ☰ on any channel to add it here</string>
+    <string name="home_last_watched">Last watched</string>
+    <string name="home_watch">▶  Watch</string>
+    <string name="home_welcome">Welcome to Hinds TV</string>
+    <string name="home_welcome_hint">Pick a channel to start watching.</string>
     <string name="vod_hint">◀ ▶ 10 s · ⏪ ⏩ 30 s · Select pause · ☰ audio &amp; subtitles · Back to details</string>
     <string name="paused">Paused</string>
     <string name="loading_video">Loading video…</string>
@@ -132,6 +141,9 @@
     <string name="theme_dark_hint">Best for evenings and dark rooms</string>
     <string name="theme_light_hint">Best for bright, sunny rooms</string>
     <string name="theme_auto_hint">Light 07:00–19:00, dark after</string>
+    <string name="appearance_start">Start Hinds TV with</string>
+    <string name="start_last_channel">Last channel (fastest)</string>
+    <string name="start_home">Home</string>
     <string name="settings_favourites">Favourites lists</string>
     <string name="settings_playback">Playback</string>
     <string name="settings_history">History</string>

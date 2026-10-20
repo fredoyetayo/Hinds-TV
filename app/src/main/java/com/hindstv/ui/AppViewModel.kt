@@ -12,6 +12,7 @@ import androidx.media3.common.Player
 import com.hindstv.HindsApp
 import com.hindstv.R
 import com.hindstv.data.ChannelRepository
+import com.hindstv.data.pushRecent
 import com.hindstv.data.db.ChannelRow
 import com.hindstv.data.db.ProgrammeEntity
 import com.hindstv.data.source.SourceProfile
@@ -32,6 +33,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -41,7 +43,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** Top-level places. Live TV (with its overlays) is home; videos and radio sit beside it. */
-enum class Screen { Setup, Tv, Videos, Radio, Search, Settings }
+enum class Screen { Setup, Home, Tv, Videos, Radio, Search, Settings }
 
 enum class Overlay { None, Banner, ChannelList, Guide }
 
@@ -54,6 +56,9 @@ data class PlaybackUi(
 )
 
 /** A group in the channel list; [listId] is set for the user's own favourites lists. */
+/** "My Channels" on Home: a favourites list's name, its group id (for zapping) and first channels. */
+data class HomeList(val name: String, val groupId: String, val channels: List<ChannelRow>)
+
 data class GenreItem(val id: String, val title: String, val listId: Long? = null)
 
 /** "Add to list" for one channel: which of the user's lists it is in. */
@@ -114,7 +119,13 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     val player: Player get() = engine.player
 
-    private val _screen = MutableStateFlow(if (store.profile == null) Screen.Setup else Screen.Tv)
+    private val _screen = MutableStateFlow(
+        when {
+            store.profile == null -> Screen.Setup
+            store.startWithHome -> Screen.Home
+            else -> Screen.Tv
+        },
+    )
     val screen: StateFlow<Screen> = _screen.asStateFlow()
 
     /** Bumped when the user connects a different provider (videos and radio start over). */
@@ -146,6 +157,24 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private var genreFocusJob: Job? = null
+
+    // --- Home ------------------------------------------------------------------------------------
+
+    private val _recentIds = MutableStateFlow(store.recentChannelIds)
+
+    /** Channels tuned to, newest first (ids a re-sync dropped are skipped). */
+    val recentChannels: StateFlow<List<ChannelRow>> = _recentIds
+        .mapLatest { ids -> ids.mapNotNull { repo.channel(it) } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** The first favourites list and its first few channels ("My Channels" on Home). */
+    val homeList: StateFlow<HomeList?> = repo.favoriteLists()
+        .flatMapLatest { lists ->
+            val list = lists.firstOrNull() ?: return@flatMapLatest flowOf(null)
+            val group = ChannelRepository.listGroupId(list.id)
+            repo.channels(group).map { HomeList(list.name, group, it.take(HOME_LIST_SIZE)) }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     // --- Playback --------------------------------------------------------------------------------
 
@@ -291,7 +320,12 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
             syncChannels()
         }
         val last = store.lastChannelId?.let { repo.channel(it) }
-        if (last != null) {
+        if (last != null && _screen.value == Screen.Home) {
+            // Starting on Home: nothing plays yet, Live picks the channel up when it opens.
+            zapGenre.value = store.lastGenreId ?: ChannelRepository.ALL
+            _playback.value = PlaybackUi(channel = last, status = PlayStatus.Tuning)
+            resumeOnForeground = true
+        } else if (last != null) {
             play(last, store.lastGenreId ?: ChannelRepository.ALL)
         } else {
             _overlay.value = Overlay.ChannelList
@@ -564,6 +598,10 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         try {
             val url = repo.streamUrl(channel.id)
             store.lastChannelId = channel.id
+            if (_recentIds.value.firstOrNull() != channel.id) {
+                _recentIds.value = pushRecent(_recentIds.value, channel.id)
+                store.recentChannelIds = _recentIds.value
+            }
             engine.play(url, owner = this)
         } catch (e: CancellationException) {
             throw e
@@ -636,13 +674,20 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         onForeground()
     }
 
-    /** A channel picked from search: straight to full screen on it. */
-    fun watchFromSearch(channel: ChannelRow) {
+    /** A channel picked from search or Home: straight to full screen on it, zapping within [group]. */
+    fun watch(channel: ChannelRow, group: String = ChannelRepository.ALL) {
         resumeOnForeground = false
         _screen.value = Screen.Tv
         _overlay.value = Overlay.None
         onForeground()
-        play(channel, ChannelRepository.ALL)
+        play(channel, group)
+    }
+
+    /** Home's "All channels": live TV with the channel list open on All. */
+    fun openChannelList() {
+        openLive()
+        _selectedGenre.value = ChannelRepository.ALL
+        _overlay.value = Overlay.ChannelList
     }
 
     private fun releaseLive() {
@@ -747,6 +792,8 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
                     container.media.clearProgress()
                     _profileVersion.update { it + 1 }
                     store.lastChannelId = null
+                    store.recentChannelIds = emptyList()
+                    _recentIds.value = emptyList()
                     zapGenre.value = ChannelRepository.ALL
                     resumeOnForeground = false
                     _playback.value = PlaybackUi()
@@ -771,6 +818,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     companion object {
         private const val MAX_AUTO_RETRIES = 1
+        private const val HOME_LIST_SIZE = 5
         private const val BANNER_MS = 4_000L
         private const val TOAST_MS = 2_500L
         private const val EXIT_WINDOW_MS = 2_500L

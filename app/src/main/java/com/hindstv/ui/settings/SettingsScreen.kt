@@ -2,6 +2,7 @@ package com.hindstv.ui.settings
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,10 +37,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ListItem
+import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
@@ -176,6 +179,49 @@ private fun AppearancePane(vm: SettingsViewModel) {
                 ThemeMode.Auto -> R.string.theme_auto to R.string.theme_auto_hint
             }
             ThemeCard(option, stringResource(label), stringResource(hint), selected = option == mode) { vm.setThemeMode(option) }
+        }
+    }
+    val home by vm.startWithHome.collectAsStateWithLifecycle()
+    Text(
+        stringResource(R.string.appearance_start),
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(top = 12.dp),
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        RadioPill(stringResource(R.string.start_last_channel), selected = !home) { vm.setStartWithHome(false) }
+        RadioPill(stringResource(R.string.start_home), selected = home) { vm.setStartWithHome(true) }
+    }
+}
+
+/** One choice of a few: a ring that fills when chosen; the chosen one sits on SurfaceRaised in Accent. */
+@Composable
+private fun RadioPill(label: String, selected: Boolean, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.height(34.dp).onFocusChanged { focused = it.isFocused },
+        shape = ClickableSurfaceDefaults.shape(HindsShapes.Pill),
+        colors = focusColors(
+            focused,
+            container = if (selected) HindsColors.SurfaceRaised else HindsColors.Chip,
+            content = if (selected) HindsColors.Accent else HindsColors.Text,
+        ),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+    ) {
+        Row(
+            Modifier.fillMaxHeight().padding(start = 11.dp, end = 15.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            val content = LocalContentColor.current
+            Box(
+                Modifier.size(13.dp).border(1.5.dp, if (selected || focused) content else HindsColors.ChipLine, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (selected) Box(Modifier.size(6.dp).background(content, CircleShape))
+            }
+            Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
     }
 }

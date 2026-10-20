@@ -68,7 +68,7 @@ app/src/main/java/com/hindstv/
   data/ChannelRepository.kt    sync source → DB, guide sync; UI reads only from the DB; stream URL resolution
   data/MediaRepository.kt      videos (portal: online, paged; playlist: DB), episodes, radio, resume positions
   data/ProfileStore.kt         SharedPreferences: profile, cached endpoint + session token, last channel/group,
-                               last sync, recent searches
+                               recent channels (20, `Recents.kt`), last sync, recent searches, theme, start with
   player/PlayerEngine.kt       the one ExoPlayer: tuned LoadControl, OkHttp data source, TS flags, FFmpeg ext
   player/ZapController.kt      zap debouncing (lone press = instant, bursts settle 500 ms)
   player/ResumePolicy.kt       when a video counts as started/finished and where to resume (pure, tested)
@@ -84,6 +84,7 @@ app/src/main/java/com/hindstv/
   ui/RemoteKeys.kt             keycode → RemoteAction mapping
   ui/tv/                       TvScreen (video, info banner, toasts), ChannelListOverlay, GuideOverlay
   ui/videos/                   VideosScreen (library rows), DetailsPage, VideoPlayerPage
+  ui/home/HomeScreen.kt        Home (opt-in start): resume hero, first favourites list, recently watched; NextUp.kt (tested)
   ui/radio/RadioScreen.kt      now playing + station grid
   ui/search/SearchScreen.kt    one box, results in rows, recent searches
   ui/tv/FavoriteDialogs.kt     "Add to list" picker (tick lists, make a new one) and rename/delete
@@ -107,6 +108,10 @@ tools/fake-portal/             fake Stalker portal + test streams for developmen
   2. Channels and the guide come from the DB.
   3. Channels refresh in the background if older than 12 h; the guide if older than 4 h (it covers 2 h
      back to 12 h ahead).
+- **Home** (first nav pill; start screen only if Settings → Appearance → Start with = Home, otherwise launch
+  still plays the last channel). Nothing plays on Home: when it is the start screen the last channel is
+  only remembered (`resumeOnForeground`) and Live picks it up. Hero = newest Continue watching item (Resume /
+  Play from start), else the last channel. Wallpapers aren't bundled yet (plain background).
 - **Full screen.**
   - ▲/▼ and CH± zap within the current group.
   - Select or ◀ opens the channel list. The Live/Guide (TV) key opens the TV guide from anywhere.

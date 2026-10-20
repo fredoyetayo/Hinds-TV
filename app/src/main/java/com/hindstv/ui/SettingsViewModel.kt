@@ -55,6 +55,9 @@ class SettingsViewModel(app: HindsApp) : ViewModel() {
 
     val themeMode: StateFlow<ThemeMode> = container.themeMode.asStateFlow()
 
+    private val _startWithHome = MutableStateFlow(store.startWithHome)
+    val startWithHome: StateFlow<Boolean> = _startWithHome.asStateFlow()
+
     private val _diagnostics = MutableStateFlow(Diagnostics.recent())
     val diagnostics: StateFlow<List<Diagnostics.Entry>> = _diagnostics.asStateFlow()
 
@@ -111,6 +114,11 @@ class SettingsViewModel(app: HindsApp) : ViewModel() {
     fun setThemeMode(mode: ThemeMode) {
         store.themeMode = mode.name
         container.themeMode.value = mode
+    }
+
+    fun setStartWithHome(home: Boolean) {
+        store.startWithHome = home
+        _startWithHome.value = home
     }
 
     fun clearResumeHistory(done: String) {

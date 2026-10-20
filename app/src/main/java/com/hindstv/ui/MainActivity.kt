@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.hindstv.HindsApp
 import com.hindstv.ui.components.NavSection
+import com.hindstv.ui.home.HomeScreen
 import com.hindstv.ui.radio.RadioScreen
 import com.hindstv.ui.search.SearchScreen
 import com.hindstv.ui.settings.SettingsScreen
@@ -122,6 +123,11 @@ private fun HindsRoot(
     // One provider connection: whoever is playing lets go before the next section starts.
     val navigate: (NavSection) -> Unit = { section ->
         when (section) {
+            NavSection.Home -> {
+                videoVm.onLeave()
+                radioVm.stop()
+                vm.openSection(Screen.Home)
+            }
             NavSection.Live, NavSection.Guide -> {
                 videoVm.onLeave()
                 radioVm.stop()
@@ -168,6 +174,27 @@ private fun HindsRoot(
                 onCancel = vm::cancelSetup,
             )
         }
+        Screen.Home -> HomeScreen(
+            vm,
+            videoVm,
+            navigate,
+            onExit = { navigate(NavSection.Live) },
+            onResume = { progress, fromStart ->
+                radioVm.stop()
+                vm.openSection(Screen.Videos)
+                videoVm.resume(progress, fromStart)
+            },
+            onWatch = { channel, group ->
+                videoVm.onLeave()
+                radioVm.stop()
+                vm.watch(channel, group)
+            },
+            onAllChannels = {
+                videoVm.onLeave()
+                radioVm.stop()
+                vm.openChannelList()
+            },
+        )
         Screen.Tv -> TvScreen(vm, navigate)
         Screen.Videos -> VideosScreen(videoVm, navigate, onExit = { navigate(NavSection.Live) })
         Screen.Radio -> RadioScreen(radioVm, navigate, onExit = { navigate(NavSection.Live) })
@@ -183,7 +210,7 @@ private fun HindsRoot(
             searchVm,
             navigate,
             onExit = { navigate(NavSection.Live) },
-            onWatch = vm::watchFromSearch,
+            onWatch = { vm.watch(it) },
             onOpenVideo = { video ->
                 vm.openSection(Screen.Videos)
                 videoVm.openDetails(video)

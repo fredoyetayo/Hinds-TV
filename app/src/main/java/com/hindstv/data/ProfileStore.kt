@@ -82,6 +82,16 @@ class ProfileStore(context: Context) {
         get() = prefs.getString(KEY_LAST_CHANNEL, null)
         set(value) = prefs.edit { putString(KEY_LAST_CHANNEL, value) }
 
+    /** Channels tuned to, newest first (Home's "Recently watched"). Ids only; at most [RECENT_MAX]. */
+    var recentChannelIds: List<String>
+        get() = prefs.getString(KEY_RECENT_CHANNELS, null)?.split('\n')?.filter { it.isNotBlank() }.orEmpty()
+        set(value) = prefs.edit { putString(KEY_RECENT_CHANNELS, value.joinToString("\n")) }
+
+    /** Open on Home instead of playing the last channel (Settings → Appearance → Start Hinds TV with). */
+    var startWithHome: Boolean
+        get() = prefs.getString(KEY_START_WITH, START_LAST) == START_HOME
+        set(value) = prefs.edit { putString(KEY_START_WITH, if (value) START_HOME else START_LAST) }
+
     /** The group the last channel was picked from — zapping stays inside it. */
     var lastGenreId: String?
         // Before named lists (v0.3) the single favourites group was "__favorites"; the database
@@ -134,6 +144,10 @@ class ProfileStore(context: Context) {
         const val KEY_GUIDE_GROUP = "guide_group"
         const val KEY_INVERT = "invert_up_down"
         const val KEY_THEME_MODE = "theme_mode"
+        const val KEY_RECENT_CHANNELS = "recent_channels"
+        const val KEY_START_WITH = "start_with"
+        const val START_LAST = "last"
+        const val START_HOME = "home"
         const val LEGACY_FAVORITES = "__favorites"
         const val KEY_LAST_GENRE = "last_genre"
         const val KEY_LAST_SYNC = "last_sync"
