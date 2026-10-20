@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -216,7 +217,8 @@ private fun StripTab(label: String, selected: Boolean, onSelect: () -> Unit) {
         colors = focusColors(focused, container = Color.Transparent, content = if (selected) HindsColors.Text else HindsColors.Muted),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
     ) {
-        Column(Modifier.padding(horizontal = 10.dp, vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        // Intrinsic width: the underline spans the label, not the whole row.
+        Column(Modifier.width(IntrinsicSize.Max).padding(horizontal = 10.dp, vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(label, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             Box(
                 Modifier.padding(top = 3.dp).height(2.dp).fillMaxWidth()

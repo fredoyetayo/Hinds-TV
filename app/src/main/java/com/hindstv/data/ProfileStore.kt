@@ -87,6 +87,11 @@ class ProfileStore(context: Context) {
         get() = prefs.getString(KEY_RECENT_CHANNELS, null)?.split('\n')?.filter { it.isNotBlank() }.orEmpty()
         set(value) = prefs.edit { putString(KEY_RECENT_CHANNELS, value.joinToString("\n")) }
 
+    /** Home wallpaper, an index into the theme's set (`Wallpapers.kt`); each theme remembers its own. */
+    fun wallpaper(light: Boolean): Int = prefs.getInt(if (light) KEY_WALL_LIGHT else KEY_WALL_DARK, 0)
+
+    fun setWallpaper(light: Boolean, index: Int) = prefs.edit { putInt(if (light) KEY_WALL_LIGHT else KEY_WALL_DARK, index) }
+
     /** Open on Home instead of playing the last channel (Settings → Appearance → Start Hinds TV with). */
     var startWithHome: Boolean
         get() = prefs.getString(KEY_START_WITH, START_LAST) == START_HOME
@@ -146,6 +151,8 @@ class ProfileStore(context: Context) {
         const val KEY_THEME_MODE = "theme_mode"
         const val KEY_RECENT_CHANNELS = "recent_channels"
         const val KEY_START_WITH = "start_with"
+        const val KEY_WALL_DARK = "wallpaper_dark"
+        const val KEY_WALL_LIGHT = "wallpaper_light"
         const val START_LAST = "last"
         const val START_HOME = "home"
         const val LEGACY_FAVORITES = "__favorites"

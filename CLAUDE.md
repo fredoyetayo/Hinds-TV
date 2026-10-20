@@ -111,17 +111,21 @@ tools/fake-portal/             fake Stalker portal + test streams for developmen
 - **Home** (first nav pill; start screen only if Settings → Appearance → Start with = Home, otherwise launch
   still plays the last channel). Nothing plays on Home: when it is the start screen the last channel is
   only remembered (`resumeOnForeground`) and Live picks it up. Hero = newest Continue watching item (Resume /
-  Play from start), else the last channel. Wallpapers aren't bundled yet (plain background).
+  Play from start), else the last channel. Wallpaper: two per theme (`ui/theme/Wallpapers.kt`, 1920×1080 WebP in
+  `drawable-nodpi`, about 150–250 KB each), chosen in Appearance, under three Background scrims.
 - **Full screen.**
   - ▲/▼ and CH± zap within the current group.
-  - Select or ◀ opens the channel list. The Live/Guide (TV) key opens the TV guide from anywhere.
+  - Select opens the channel list. ◀ opens the recent-channels strip (`Overlay.Recent`, `RecentStrip.kt`:
+    Recently watched / first list / All tabs; Select watches, ▼ or Back hides, ⏪ last channel).
+    The Live/Guide (TV) key opens the TV guide from anywhere.
   - ▶ shows the info banner.
   - ⏪ goes to the previous channel. ⏩ opens Audio & subtitles.
   - ☰ toggles favourite.
   - ⏯ stops or resumes (live TV is released, not paused).
   - Back twice exits.
-- **Overlay.** Section pills on top (Live · Guide · VOD · Radio · Search · Settings). Groups on the left:
-  the user's favourites lists first (★), then All, then the provider's groups (focus previews a group,
+- **Overlay.** Section pills on top (Home · Live · Guide · VOD · Radio · Search · Settings). Groups on the left:
+  Recently watched (`__recent`, kept in `ChannelRepository`; playing from it zaps through All), the user's
+  favourites lists (★), then All, then the provider's groups (focus previews a group,
   debounced); channels on the right with what's on now. Select plays, ☰ opens "Add to list" (☰ on a list
   renames/deletes it), ⏪⏩ jump 10 channels, Back closes. Footer: Refresh channels.
 - **Favourites lists.** Any number of named lists; a channel can be in several. Group ids `__list:<id>`.
@@ -132,7 +136,8 @@ tools/fake-portal/             fake Stalker portal + test streams for developmen
   Back or Guide closes. `MainActivity` passes every key through while the guide is open.
 - **Section bar.** `NavBarState` + `NavBackHandler`: Back from anywhere in a section's lists jumps to the
   bar first, then leaves. Keep the bar outside lazy lists so it is always composed.
-- **VOD** (was "Videos"). Category rail (Continue watching, All VOD, provider categories; focus previews
+- **VOD** (was "Videos"). Category rail (For you — where VOD opens: newest title in the category last watched
+  from, plus a Continue watching row — then Continue watching, All VOD, provider categories; focus previews
   after 250 ms) + 3-column poster grid with paging, title filter (portal `search=`) and Newest/A–Z
   (`sortby=added|name`). "Continue watching" resumes straight into the video. Details: Resume / Play from start, episodes.
   Player: `MainActivity` sends keys to `VideoViewModel.onPlayerKey` (◀▶ ±10 s, ⏪⏩ ±30 s, accumulating;

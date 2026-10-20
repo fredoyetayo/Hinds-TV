@@ -25,9 +25,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
@@ -71,6 +73,8 @@ import com.hindstv.ui.components.rememberNavBarState
 import com.hindstv.ui.components.requestFocusSoon
 import com.hindstv.ui.theme.HindsColors
 import com.hindstv.ui.theme.HindsShapes
+import com.hindstv.ui.theme.LocalHindsPalette
+import com.hindstv.ui.theme.wallpapersFor
 
 /**
  * Home (opt-in start screen): what you were watching, your first favourites list and the channels
@@ -94,8 +98,20 @@ fun HomeScreen(
     val navBar = rememberNavBarState()
     val firstFocus = remember { FocusRequester() }
     val hero = continueWatching.firstOrNull()
+    val wallpapers by vm.wallpapers.collectAsStateWithLifecycle()
+    val light = LocalHindsPalette.current.isLight
+    val set = wallpapersFor(light)
+    val wallpaper = set[(if (light) wallpapers.second else wallpapers.first).coerceIn(set.indices)]
 
-    Column(Modifier.fillMaxSize().background(HindsColors.Background).padding(top = 20.dp)) {
+    Box(Modifier.fillMaxSize().background(HindsColors.Background)) {
+        // Coil decodes it at screen size; the scrims keep text legible over any picture.
+        AsyncImage(model = wallpaper.image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        val bg = HindsColors.Background
+        Box(Modifier.fillMaxSize().background(Brush.horizontalGradient(0f to bg.copy(alpha = 0.86f), 0.38f to bg.copy(alpha = 0.5f), 0.62f to Color.Transparent)))
+        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.4f to Color.Transparent, 0.64f to bg.copy(alpha = 0.9f), 1f to bg.copy(alpha = 0.98f))))
+        Box(Modifier.fillMaxWidth().height(100.dp).background(Brush.verticalGradient(listOf(bg.copy(alpha = 0.6f), Color.Transparent))))
+    }
+    Column(Modifier.fillMaxSize().padding(top = 20.dp)) {
         Box(Modifier.fillMaxWidth().padding(horizontal = 48.dp)) {
             Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(formatTime(now), fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
@@ -270,8 +286,10 @@ private fun RecentRow(
         if (recent.isNotEmpty()) {
             Text(stringResource(R.string.group_recent), fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 7.dp))
         }
-        recent.forEach { channel -> RecentChip(channel) { onWatch(channel) } }
-        Spacer(Modifier.weight(1f))
+        // The chips give way (clipped at the edge) so All channels always fits.
+        Row(Modifier.weight(1f).clipToBounds(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            recent.forEach { channel -> RecentChip(channel) { onWatch(channel) } }
+        }
         var focused by remember { mutableStateOf(false) }
         Surface(
             onClick = onAllChannels,
@@ -288,6 +306,8 @@ private fun RecentRow(
             Text(
                 stringResource(R.string.genre_all),
                 fontSize = 12.sp,
+                maxLines = 1,
+                softWrap = false,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.align(Alignment.Center).padding(horizontal = 14.dp),
             )
@@ -319,7 +339,7 @@ private fun RecentChip(channel: ChannelRow, onClick: () -> Unit) {
                 fontWeight = FontWeight.Bold,
                 color = if (focused) HindsColors.OnFocus.copy(alpha = 0.7f) else HindsColors.Muted,
             )
-            Text(channel.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text(channel.name, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
         }
     }
 }

@@ -116,6 +116,13 @@ class SettingsViewModel(app: HindsApp) : ViewModel() {
         container.themeMode.value = mode
     }
 
+    val wallpapers: StateFlow<Pair<Int, Int>> = container.wallpapers.asStateFlow()
+
+    fun setWallpaper(light: Boolean, index: Int) {
+        store.setWallpaper(light, index)
+        container.wallpapers.value = container.wallpapers.value.let { if (light) it.copy(second = index) else it.copy(first = index) }
+    }
+
     fun setStartWithHome(home: Boolean) {
         store.startWithHome = home
         _startWithHome.value = home

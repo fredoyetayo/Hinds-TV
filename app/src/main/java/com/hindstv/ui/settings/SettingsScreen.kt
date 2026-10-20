@@ -1,5 +1,6 @@
 package com.hindstv.ui.settings
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,8 +19,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,6 +35,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -46,6 +50,7 @@ import androidx.tv.material3.LocalContentColor
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
+import coil3.compose.AsyncImage
 import com.hindstv.BuildConfig
 import com.hindstv.R
 import com.hindstv.core.Diagnostics
@@ -67,7 +72,9 @@ import com.hindstv.ui.theme.HindsPalette
 import com.hindstv.ui.theme.HindsShapes
 import com.hindstv.ui.theme.HindsStyle
 import com.hindstv.ui.theme.LightPalette
+import com.hindstv.ui.theme.LocalHindsPalette
 import com.hindstv.ui.theme.ThemeMode
+import com.hindstv.ui.theme.wallpapersFor
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -116,7 +123,10 @@ fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 when (section) {
-                    SettingsSection.Appearance -> AppearancePane(vm)
+                    SettingsSection.Appearance -> Column(
+                        Modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) { AppearancePane(vm) }
                     SettingsSection.Account -> AccountPane(vm, onChangeAccount, onRefreshChannels)
                     SettingsSection.Favourites -> FavouritesPane(vm, onEditList)
                     SettingsSection.Playback -> PlaybackPane(vm)
@@ -181,6 +191,20 @@ private fun AppearancePane(vm: SettingsViewModel) {
             ThemeCard(option, stringResource(label), stringResource(hint), selected = option == mode) { vm.setThemeMode(option) }
         }
     }
+    val wallpapers by vm.wallpapers.collectAsStateWithLifecycle()
+    val light = LocalHindsPalette.current.isLight
+    val chosen = if (light) wallpapers.second else wallpapers.first
+    Text(
+        stringResource(R.string.appearance_wallpaper) + "  ·  " + stringResource(if (light) R.string.wallpaper_for_light else R.string.wallpaper_for_dark),
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(top = 12.dp),
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        wallpapersFor(light).forEachIndexed { index, wall ->
+            WallpaperCard(stringResource(wall.name), wall.image, selected = index == chosen) { vm.setWallpaper(light, index) }
+        }
+    }
     val home by vm.startWithHome.collectAsStateWithLifecycle()
     Text(
         stringResource(R.string.appearance_start),
@@ -191,6 +215,38 @@ private fun AppearancePane(vm: SettingsViewModel) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         RadioPill(stringResource(R.string.start_last_channel), selected = !home) { vm.setStartWithHome(false) }
         RadioPill(stringResource(R.string.start_home), selected = home) { vm.setStartWithHome(true) }
+    }
+}
+
+/** A wallpaper thumbnail (decoded at thumbnail size) with its name; the chosen one has a check. */
+@Composable
+private fun WallpaperCard(name: String, @DrawableRes image: Int, selected: Boolean, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(8.dp)
+    Column(Modifier.width(112.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Surface(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth().height(63.dp).onFocusChanged { focused = it.isFocused },
+            shape = ClickableSurfaceDefaults.shape(shape),
+            colors = ClickableSurfaceDefaults.colors(containerColor = HindsColors.Surface, focusedContainerColor = HindsColors.Surface),
+            border = focusRing(
+                focused,
+                shape,
+                idle = if (selected) Border(BorderStroke(2.dp, HindsColors.Accent), inset = 0.dp, shape = shape) else Border.None,
+            ),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+        ) {
+            AsyncImage(model = image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            if (selected) {
+                Box(
+                    Modifier.align(Alignment.TopEnd).padding(5.dp).size(16.dp).background(HindsColors.Accent, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("✓", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = HindsColors.OnAccent)
+                }
+            }
+        }
+        Text(name, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = if (selected) HindsColors.Text else HindsColors.Muted)
     }
 }
 

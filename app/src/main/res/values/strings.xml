@@ -154,6 +154,13 @@
     <string name="theme_light_hint">Best for bright, sunny rooms</string>
     <string name="theme_auto_hint">Light 07:00–19:00, dark after</string>
     <string name="appearance_start">Start Hinds TV with</string>
+    <string name="appearance_wallpaper">Home wallpaper</string>
+    <string name="wallpaper_for_dark">for Dark</string>
+    <string name="wallpaper_for_light">for Light</string>
+    <string name="wall_reservoir">Reservoir</string>
+    <string name="wall_fells">Fells</string>
+    <string name="wall_moorings">Moorings</string>
+    <string name="wall_lakeshore">Lakeshore</string>
     <string name="start_last_channel">Last channel (fastest)</string>
     <string name="start_home">Home</string>
     <string name="settings_favourites">Favourites lists</string>

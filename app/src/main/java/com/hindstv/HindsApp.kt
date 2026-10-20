@@ -55,6 +55,9 @@ class AppContainer(private val app: Application) {
     /** Shared by Settings (which changes it) and the activity (which applies it). */
     val themeMode by lazy { MutableStateFlow(ThemeMode.parse(profileStore.themeMode)) }
 
+    /** Chosen Home wallpaper per theme: dark index to light index. */
+    val wallpapers by lazy { MutableStateFlow(profileStore.wallpaper(light = false) to profileStore.wallpaper(light = true)) }
+
     @Volatile private var source: ChannelSource? = null
     @Volatile private var sourceProfile: SourceProfile? = null
 

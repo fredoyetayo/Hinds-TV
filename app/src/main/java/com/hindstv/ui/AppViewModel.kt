@@ -160,6 +160,8 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     // --- Home ------------------------------------------------------------------------------------
 
+    val wallpapers: StateFlow<Pair<Int, Int>> = container.wallpapers.asStateFlow()
+
     /** Channels tuned to, newest first. */
     val recentChannels: StateFlow<List<ChannelRow>> = repo.channels(ChannelRepository.RECENT)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
