@@ -79,8 +79,14 @@ sealed class StalkerException(message: String, cause: Throwable? = null) : IOExc
     /** HTTP 403/429/458/509: too many requests or too many connections. Back off; not a logout. */
     class Throttled(val code: Int) : StalkerException("Portal is limiting requests (HTTP $code)")
 
-    /** The portal refused to give a stream (e.g. `nothing_to_play`, connection limit). */
-    class StreamUnavailable(val reason: String) : StalkerException("Stream unavailable: $reason")
+    /**
+     * The portal refused to give a stream (e.g. `nothing_to_play`, connection limit). [detail] is
+     * the portal's own explanation (its top-level `text`), when it gave one.
+     */
+    class StreamUnavailable(val reason: String, val detail: String? = null) : StalkerException("Stream unavailable: $reason") {
+        /** The portal couldn't reach its own storage server: usually brief, worth one retry. */
+        val storageTimeout: Boolean get() = detail?.contains("timeout", ignoreCase = true) == true
+    }
 
     class ServerError(val code: Int) : StalkerException("Portal server error (HTTP $code)")
 

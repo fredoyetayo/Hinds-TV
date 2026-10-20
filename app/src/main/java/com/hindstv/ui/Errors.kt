@@ -21,7 +21,11 @@ object Errors {
         is StalkerException.Throttled ->
             "The provider is limiting connections (HTTP ${e.code}). If STB Emu or another device is using this " +
                 "account, close it and try again in a minute."
-        is StalkerException.StreamUnavailable -> "Your provider can't play this right now (${e.reason.replace('_', ' ')})."
+        is StalkerException.StreamUnavailable -> if (e.storageTimeout) {
+            "Your provider's video server didn't answer. Try again in a minute, or pick something else."
+        } else {
+            "Your provider can't play this right now (${e.reason.replace('_', ' ')})."
+        }
         is StalkerException.ServerError -> "The provider's server had a problem (HTTP ${e.code}). Try again shortly."
         is StalkerException.BadResponse -> "The portal sent a response Hinds TV couldn't read. (${e.message})"
         is UnknownHostException -> "Can't reach the portal. Check the address and your internet connection."

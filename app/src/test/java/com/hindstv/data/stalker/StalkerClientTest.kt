@@ -195,6 +195,29 @@ class StalkerClientTest {
     }
 
     @Test
+    fun `a storage timeout is retried once`() = runTest {
+        portal.vodStorageTimeouts = 1
+
+        val url = client().videoUrl("/media/9.mpg", series = null)
+
+        assertEquals("http://cdn.example/vod/9.mp4", url)
+        assertEquals(2, portal.requests.count { it.url.queryParameter("action") == "create_link" })
+    }
+
+    @Test
+    fun `a storage timeout that persists says so`() = runTest {
+        portal.vodStorageTimeouts = 5
+
+        val e = runCatching { client().videoUrl("/media/9.mpg", series = null) }.exceptionOrNull()
+
+        assertTrue(e is StalkerException.StreamUnavailable)
+        e as StalkerException.StreamUnavailable
+        assertTrue(e.storageTimeout)
+        assertEquals("nothing_to_play", e.reason)
+        assertEquals(2, portal.requests.count { it.url.queryParameter("action") == "create_link" })
+    }
+
+    @Test
     fun `a link given as id and play token becomes a movie URL`() = runTest {
         portal.vodLinkAsToken = true
 
@@ -313,8 +336,13 @@ class StalkerClientTest {
                 "account_info/get_main_info" -> js("""{"phone":"","end_date":"2027-03-01 00:00:00","tariff_plan":"Premium"}""")
                 "vod/get_categories" -> js("""[{"id":"*","title":"All"},{"id":"5","title":"GCSE Maths"},{"id":"6","title":"GCSE Biology"}]""")
                 "vod/get_ordered_list" -> vodList(url)
-                "vod/create_link" ->
-                    if (vodLinkAsToken) js("""{"id":"9","play_token":"tok9"}""") else js("""{"cmd":"ffmpeg http://cdn.example/vod/9.mp4"}""")
+                "vod/create_link" -> when {
+                    vodStorageTimeouts-- > 0 -> MockResponse(
+                        body = """{"js":{"id":0,"cmd":"","error":"nothing_to_play"},"text":"Connection timeout. url: http://10.9.9.9/storage/get.php"}""",
+                    )
+                    vodLinkAsToken -> js("""{"id":"9","play_token":"tok9"}""")
+                    else -> js("""{"cmd":"ffmpeg http://cdn.example/vod/9.mp4"}""")
+                }
                 "radio/get_ordered_list" -> js(
                     """{"total_items":2,"max_page_items":10,"data":[
                         {"id":"1","name":"Talk FM","number":"1","cmd":"ffmpeg http://radio.example/talk"},
@@ -327,6 +355,7 @@ class StalkerClientTest {
         }
 
         var vodLinkAsToken = false
+        var vodStorageTimeouts = 0
         var radioLinkFails = false
 
         private fun vodList(url: okhttp3.HttpUrl): MockResponse {

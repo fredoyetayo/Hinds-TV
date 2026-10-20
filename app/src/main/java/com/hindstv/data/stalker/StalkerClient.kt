@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
@@ -109,14 +110,22 @@ class StalkerClient(
      * `create_link` for any module (`itv`, `vod`, `radio`). [series] is the episode number for
      * series stored as one VOD item; films must send it empty (`series=0` gives `nothing_to_play`).
      */
-    suspend fun createLink(type: String, cmd: String, series: Int?): String = authed { ep, tok ->
+    suspend fun createLink(type: String, cmd: String, series: Int?): String = try {
+        createLinkOnce(type, cmd, series)
+    } catch (e: StalkerException.StreamUnavailable) {
+        if (!e.storageTimeout) throw e
+        delay(STORAGE_RETRY_DELAY_MS)
+        createLinkOnce(type, cmd, series)
+    }
+
+    private suspend fun createLinkOnce(type: String, cmd: String, series: Int?): String = authed { ep, tok ->
         val js = request(
             ep, tok,
             "type" to type, "action" to "create_link", "cmd" to cmd, "series" to (series?.toString() ?: ""),
             "forced_storage" to "undefined", "disable_ad" to "0", "download" to "0", "force_ch_link_check" to "0",
         )
         val obj = js as? JsonObject
-        obj?.string("error")?.let { throw StalkerException.StreamUnavailable(it) }
+        obj?.string("error")?.let { throw StalkerException.StreamUnavailable(it, obj.string("text")) }
         val raw = obj?.string("cmd") ?: obj?.string("url") ?: (js as? JsonPrimitive)?.text()
         val url = raw?.let(::cleanStreamUrl)
             ?: obj?.let { movieUrl(it, ep) }
@@ -481,6 +490,9 @@ class StalkerClient(
         val js = (root as? JsonObject)?.get("js")
             ?: throw StalkerException.BadResponse("Portal response has no 'js' field")
         if (tok != null && js is JsonPrimitive && js.booleanOrNull == false) throw StalkerException.AuthFailed()
+        // An error's explanation sits beside "js" ({"js":{"error":…},"text":"Connection timeout…"}).
+        val text = ((root as JsonObject)["text"] as? JsonPrimitive)?.takeIf { it.isString }
+        if (js is JsonObject && "error" in js && "text" !in js && text != null) return JsonObject(js + ("text" to text))
         return js
     }
 
@@ -530,6 +542,7 @@ class StalkerClient(
     companion object {
         const val MIN_REAUTH_INTERVAL_MS = 60_000L
         private const val DIAG_BODY_CHARS = 200
+        private const val STORAGE_RETRY_DELAY_MS = 2_000L
         private val EXPIRY_KEYS = listOf("end_date", "exp_date", "expire_billing_date", "tariff_expired_date", "phone")
         private val QUIET_CALLS = setOf("watchdog/get_events")
         private val LIST_CALLS = setOf(

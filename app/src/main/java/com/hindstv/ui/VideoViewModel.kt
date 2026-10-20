@@ -337,7 +337,7 @@ class VideoViewModel(private val app: HindsApp) : ViewModel() {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: StalkerException.StreamUnavailable) {
-                val message = if (e.reason.contains("nothing_to_play", ignoreCase = true)) {
+                val message = if (!e.storageTimeout && e.reason.contains("nothing_to_play", ignoreCase = true)) {
                     app.getString(R.string.vod_nothing_to_play)
                 } else {
                     Errors.describe(e)
