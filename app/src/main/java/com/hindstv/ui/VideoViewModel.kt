@@ -58,6 +58,13 @@ sealed interface LibraryUi {
     data class Failed(val message: String) : LibraryUi
 }
 
+/** The "For you" hero: the newest title in the category last watched from (or newest overall). */
+sealed interface ForYouUi {
+    data object Loading : ForYouUi
+    data class Ready(val item: VideoItem?, val categoryTitle: String?) : ForYouUi
+    data class Failed(val message: String) : ForYouUi
+}
+
 sealed interface EpisodesUi {
     data object None : EpisodesUi
     data object Loading : EpisodesUi
@@ -108,6 +115,10 @@ class VideoViewModel(private val app: HindsApp) : ViewModel() {
 
     val continueWatching: StateFlow<List<WatchProgressEntity>> = media.continueWatching()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private val _forYou = MutableStateFlow<ForYouUi>(ForYouUi.Loading)
+    val forYou: StateFlow<ForYouUi> = _forYou.asStateFlow()
+    private var forYouJob: Job? = null
 
     private val _episodes = MutableStateFlow<EpisodesUi>(EpisodesUi.None)
     val episodes: StateFlow<EpisodesUi> = _episodes.asStateFlow()
@@ -170,18 +181,31 @@ class VideoViewModel(private val app: HindsApp) : ViewModel() {
         libraryJob = viewModelScope.launch {
             _library.value = try {
                 val categories = media.videoCategories()
-                if (_gridQuery.value == null) {
-                    val start = when {
-                        continueWatching.value.isNotEmpty() -> CONTINUE
-                        else -> categories.firstOrNull()?.id ?: ALL_VIDEOS
-                    }
-                    selectCategory(start)
-                }
+                if (_gridQuery.value == null) selectCategory(FOR_YOU)
+                loadForYou(categories)
                 LibraryUi.Ready(listOf(VideoCategory(ALL_VIDEOS, app.getString(com.hindstv.R.string.all_vod))) + categories)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 LibraryUi.Failed(Errors.describe(e))
+            }
+        }
+    }
+
+    /** One page request: the newest title where the user last watched, else the newest of all. */
+    private fun loadForYou(categories: List<VideoCategory>) {
+        forYouJob?.cancel()
+        _forYou.value = ForYouUi.Loading
+        forYouJob = viewModelScope.launch {
+            _forYou.value = try {
+                val watched = continueWatching.value.firstOrNull()?.categoryId
+                val category = categories.firstOrNull { it.id == watched }
+                val newest = media.videoPage(category?.id ?: ALL_VIDEOS, 1, VideoSort.Newest).items.firstOrNull()
+                ForYouUi.Ready(newest, category?.title)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                ForYouUi.Failed(Errors.describe(e))
             }
         }
     }
@@ -211,7 +235,7 @@ class VideoViewModel(private val app: HindsApp) : ViewModel() {
     private fun show(query: GridQuery) {
         gridJob?.cancel()
         _gridQuery.value = query
-        if (query.categoryId == CONTINUE) {
+        if (query.categoryId == CONTINUE || query.categoryId == FOR_YOU) {
             _grid.value = null
             return
         }
@@ -261,6 +285,8 @@ class VideoViewModel(private val app: HindsApp) : ViewModel() {
         libraryJob?.cancel()
         _library.value = LibraryUi.Loading
         gridCache.clear()
+        forYouJob?.cancel()
+        _forYou.value = ForYouUi.Loading
         _gridQuery.value = null
         _grid.value = null
         _page.value = VideoPageUi.Library
@@ -520,6 +546,9 @@ class VideoViewModel(private val app: HindsApp) : ViewModel() {
     companion object {
         /** Rail entry for "Continue watching" (not a provider category). */
         const val CONTINUE = "__continue"
+
+        /** Rail entry for "For you", where VOD opens. */
+        const val FOR_YOU = "__foryou"
         private const val SEARCH_DEBOUNCE_MS = 350L
         private const val GRID_CACHE = 8
         private const val START_TIMEOUT_MS = 30_000L

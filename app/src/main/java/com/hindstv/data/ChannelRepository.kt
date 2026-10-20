@@ -15,12 +15,17 @@ import com.hindstv.data.source.ChannelSource
 import com.hindstv.data.source.EpgChannelRef
 import com.hindstv.data.source.PlaylistException
 import com.hindstv.data.source.StalkerSource
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 
 /**
  * Channels and guide data live in the local database; the UI only ever reads from there, so
  * browsing is instant and works while the provider is slow. [sync] and [syncEpg] refresh it.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class ChannelRepository(
     private val dao: ChannelDao,
     private val epgDao: EpgDao,
@@ -29,9 +34,34 @@ class ChannelRepository(
 ) {
     fun genres(): Flow<List<GenreEntity>> = dao.genres()
 
+    private val recentIds = MutableStateFlow(store.recentChannelIds)
+
     fun channels(genreId: String): Flow<List<ChannelRow>> {
+        if (genreId == RECENT) return recentChannels()
         listIdOf(genreId)?.let { return dao.listChannels(it) }
         return if (genreId == ALL) dao.allChannels() else dao.channelsInGenre(genreId)
+    }
+
+    // --- Recently watched ------------------------------------------------------------------------
+
+    /** Newest first; ids a re-sync dropped are skipped. */
+    private fun recentChannels(): Flow<List<ChannelRow>> = recentIds.flatMapLatest { ids ->
+        dao.channelsByIds(ids).map { rows ->
+            val byId = rows.associateBy { it.id }
+            ids.mapNotNull(byId::get)
+        }
+    }
+
+    fun noteWatched(channelId: String) {
+        if (recentIds.value.firstOrNull() == channelId) return
+        recentIds.value = pushRecent(recentIds.value, channelId)
+        store.recentChannelIds = recentIds.value
+    }
+
+    /** Recent channels belong to one provider. */
+    fun clearRecent() {
+        recentIds.value = emptyList()
+        store.recentChannelIds = emptyList()
     }
 
     // --- Favourites lists --------------------------------------------------------------------------
@@ -165,6 +195,7 @@ class ChannelRepository(
         fun listIdOf(genreId: String): Long? =
             if (genreId.startsWith(LIST_PREFIX)) genreId.removePrefix(LIST_PREFIX).toLongOrNull() else null
         const val ALL = "__all"
+        const val RECENT = "__recent"
         const val EPG_PAST_S = 2 * 3600L
         const val EPG_AHEAD_S = 12 * 3600L
     }

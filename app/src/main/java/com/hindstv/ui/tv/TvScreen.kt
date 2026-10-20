@@ -56,6 +56,7 @@ fun TvScreen(vm: AppViewModel, onNavigate: (NavSection) -> Unit) {
             Overlay.Banner -> InfoBanner(vm, playback, Modifier.align(Alignment.BottomCenter))
             Overlay.ChannelList -> ChannelListOverlay(vm, onNavigate)
             Overlay.Guide -> GuideOverlay(vm)
+            Overlay.Recent -> RecentStrip(vm)
             Overlay.None -> Unit
         }
         toast?.let { Toast(it, Modifier.align(Alignment.TopCenter)) }

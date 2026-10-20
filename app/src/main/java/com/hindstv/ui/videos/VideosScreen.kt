@@ -12,13 +12,16 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -27,13 +30,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ListItem
 import androidx.tv.material3.MaterialTheme
@@ -43,9 +49,11 @@ import com.hindstv.data.db.WatchProgressEntity
 import com.hindstv.data.source.VideoItem
 import com.hindstv.data.source.VideoSort
 import com.hindstv.player.ResumePolicy
+import com.hindstv.ui.ForYouUi
 import com.hindstv.ui.LibraryUi
 import com.hindstv.ui.VideoPageUi
 import com.hindstv.ui.VideoViewModel
+import com.hindstv.ui.components.Artwork
 import com.hindstv.ui.components.NavBackHandler
 import com.hindstv.ui.components.NavBarState
 import com.hindstv.ui.components.NavSection
@@ -55,8 +63,8 @@ import com.hindstv.ui.components.PosterCard
 import com.hindstv.ui.components.TopNav
 import com.hindstv.ui.components.TvTextField
 import com.hindstv.ui.components.formatDuration
-import com.hindstv.ui.components.rememberNavBarState
 import com.hindstv.ui.components.pageJumpItem
+import com.hindstv.ui.components.rememberNavBarState
 import com.hindstv.ui.components.rememberPageJump
 import com.hindstv.ui.components.requestFocusSoon
 import com.hindstv.ui.theme.HindsColors
@@ -111,6 +119,7 @@ private fun LibraryPage(vm: VideoViewModel, onNavigate: (NavSection) -> Unit, na
             is LibraryUi.Ready -> Row(Modifier.fillMaxSize().padding(top = 16.dp)) {
                 CategoryRail(
                     categories = buildList {
+                        add(VideoViewModel.FOR_YOU to stringResource(R.string.vod_for_you))
                         if (continueWatching.isNotEmpty()) add(VideoViewModel.CONTINUE to stringResource(R.string.continue_watching))
                         lib.categories.forEach { add(it.id to it.title) }
                     },
@@ -119,7 +128,9 @@ private fun LibraryPage(vm: VideoViewModel, onNavigate: (NavSection) -> Unit, na
                     focusRequester = railFocus,
                 )
                 Column(Modifier.weight(1f).fillMaxHeight().padding(start = 20.dp, end = 40.dp)) {
-                    if (query?.categoryId == VideoViewModel.CONTINUE) {
+                    if (query?.categoryId == VideoViewModel.FOR_YOU) {
+                        ForYouPane(vm, continueWatching)
+                    } else if (query?.categoryId == VideoViewModel.CONTINUE) {
                         ContinueGrid(vm, continueWatching, railFocus)
                     } else {
                         CategoryGrid(vm, title = lib.categories.firstOrNull { it.id == query?.categoryId }?.title.orEmpty(), railFocus)
@@ -263,6 +274,94 @@ private fun ContinueGrid(vm: VideoViewModel, items: List<WatchProgressEntity>, r
                 modifier = Modifier.pageJumpItem(jump, index),
             )
         }
+    }
+}
+
+/**
+ * "For you": the newest title where you last watched (a film plays, a series opens its episodes),
+ * then Continue watching as one row.
+ */
+@Composable
+private fun ForYouPane(vm: VideoViewModel, continueWatching: List<WatchProgressEntity>) {
+    val forYou by vm.forYou.collectAsStateWithLifecycle()
+    when (val f = forYou) {
+        ForYouUi.Loading -> Note(stringResource(R.string.loading), Modifier.padding(top = 8.dp))
+        is ForYouUi.Failed -> Text(f.message, style = MaterialTheme.typography.bodyLarge, color = HindsColors.Error)
+        is ForYouUi.Ready -> f.item?.let { ForYouHero(vm, it, f.categoryTitle) }
+    }
+    if (continueWatching.isEmpty()) return
+    Row(Modifier.fillMaxWidth().padding(top = 22.dp), verticalAlignment = Alignment.Bottom) {
+        Text(stringResource(R.string.continue_watching), fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        Text(stringResource(R.string.vod_picks_up), fontSize = 12.sp, fontWeight = FontWeight.Medium, color = HindsColors.Muted)
+    }
+    LazyRow(
+        Modifier.padding(top = 10.dp).focusRestorer().focusGroup(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(end = 24.dp),
+    ) {
+        items(continueWatching, key = { it.key }) { p ->
+            val left = (p.durationMs - p.positionMs).coerceAtLeast(0)
+            PosterCard(
+                title = p.title,
+                meta = listOfNotNull(
+                    p.episodeTitle,
+                    if (p.durationMs > 0) stringResource(R.string.time_left, formatDuration(left)) else null,
+                ).joinToString(" · "),
+                image = p.poster,
+                onClick = { vm.resume(p) },
+                progress = ResumePolicy.fraction(p.positionMs, p.durationMs),
+                badge = p.episodeNumber?.let { stringResource(R.string.episode_badge, p.episodeSeason ?: "1", it) },
+                width = 204.dp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ForYouHero(vm: VideoViewModel, item: VideoItem, categoryTitle: String?) {
+    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                (categoryTitle?.let { stringResource(R.string.vod_new_in, it) } ?: stringResource(R.string.vod_newest)).uppercase(),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.8.sp,
+                color = HindsColors.Accent,
+            )
+            Text(
+                item.title,
+                fontSize = if (item.title.length <= 18) 40.sp else 28.sp,
+                lineHeight = if (item.title.length <= 18) 42.sp else 32.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+            videoMeta(item).takeIf { it.isNotEmpty() }?.let {
+                Text(it, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = HindsColors.Muted, modifier = Modifier.padding(top = 8.dp))
+            }
+            item.description?.takeIf { it.isNotBlank() }?.let {
+                Text(
+                    it,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = HindsColors.Muted,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (item.hasEpisodes) {
+                    PillButton(stringResource(R.string.episodes), onClick = { vm.openDetails(item) })
+                } else {
+                    PillButton(stringResource(R.string.play), onClick = { vm.play(item, null, 0) })
+                    PillButton(stringResource(R.string.vod_details), onClick = { vm.openDetails(item) })
+                }
+            }
+        }
+        Artwork(item.poster, item.title, Modifier.size(280.dp, 158.dp).clip(RoundedCornerShape(12.dp)))
     }
 }
 

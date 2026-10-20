@@ -52,6 +52,8 @@ import com.hindstv.ui.AppViewModel
 import com.hindstv.ui.HomeList
 import com.hindstv.ui.VideoViewModel
 import com.hindstv.ui.components.Artwork
+import com.hindstv.ui.components.ChannelTile
+import com.hindstv.ui.components.ChannelWordmark
 import com.hindstv.ui.components.NavBackHandler
 import com.hindstv.ui.components.NavSection
 import com.hindstv.ui.components.PillButton
@@ -228,7 +230,7 @@ private fun ChannelHero(channel: ChannelRow, airing: ProgrammeEntity?, now: Long
         }
         Spacer(Modifier.weight(1f))
         Box(Modifier.size(320.dp, 180.dp).background(HindsColors.Plate, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-            Logo(channel, Modifier.size(180.dp, 90.dp), initialsSize = 40)
+            ChannelWordmark(channel, Modifier.size(180.dp, 90.dp), initialsSize = 40.sp)
         }
     }
 }
@@ -241,18 +243,6 @@ private fun WelcomeHero() {
     }
 }
 
-/** The provider's logo, or initials when there is none. */
-@Composable
-private fun Logo(channel: ChannelRow, modifier: Modifier, initialsSize: Int) {
-    Box(modifier, contentAlignment = Alignment.Center) {
-        if (channel.logo != null) {
-            AsyncImage(model = channel.logo, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize())
-        } else {
-            Text(remember(channel.name) { initialsOf(channel.name) }, fontSize = initialsSize.sp, fontWeight = FontWeight.Bold, color = HindsColors.Muted)
-        }
-    }
-}
-
 @Composable
 private fun MyChannels(list: HomeList, onAir: Map<String, ProgrammeEntity>, now: Long, onWatch: (ChannelRow, String) -> Unit, modifier: Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -262,45 +252,7 @@ private fun MyChannels(list: HomeList, onAir: Map<String, ProgrammeEntity>, now:
         }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             list.channels.forEach { channel ->
-                ChannelTile(channel, onAir[channel.id], now) { onWatch(channel, list.groupId) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChannelTile(channel: ChannelRow, airing: ProgrammeEntity?, now: Long, onClick: () -> Unit) {
-    var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(10.dp)
-    Column(Modifier.width(163.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Surface(
-            onClick = onClick,
-            modifier = Modifier.fillMaxWidth().height(75.dp).onFocusChanged { focused = it.isFocused },
-            shape = ClickableSurfaceDefaults.shape(shape),
-            colors = ClickableSurfaceDefaults.colors(
-                containerColor = HindsColors.Plate,
-                focusedContainerColor = HindsColors.Plate,
-                pressedContainerColor = HindsColors.Plate,
-            ),
-            border = focusRing(focused, shape),
-            scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
-        ) {
-            Text(
-                channel.number.toString(),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = HindsColors.Muted,
-                modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 6.dp),
-            )
-            Logo(channel, Modifier.align(Alignment.Center).size(96.dp, 38.dp), initialsSize = 20)
-            if (airing != null) {
-                ProgressLine(airing.progress(now), Modifier.align(Alignment.BottomStart).padding(horizontal = 8.dp, vertical = 7.dp).fillMaxWidth())
-            }
-        }
-        Column(Modifier.padding(horizontal = 2.dp)) {
-            Text(channel.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            airing?.let {
-                Text(it.title, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = HindsColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                ChannelTile(channel, onAir[channel.id], now, onClick = { onWatch(channel, list.groupId) })
             }
         }
     }

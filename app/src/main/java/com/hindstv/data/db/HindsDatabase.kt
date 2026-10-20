@@ -162,6 +162,9 @@ abstract class ChannelDao {
     )
     abstract fun listChannels(listId: Long): Flow<List<ChannelRow>>
 
+    @Query("SELECT c.id, c.number, c.name, c.logo, c.genreId, $IS_FAVORITE FROM channels c WHERE c.id IN (:ids)")
+    abstract fun channelsByIds(ids: List<String>): Flow<List<ChannelRow>>
+
     @Query("SELECT c.id, c.number, c.name, c.logo, c.genreId, $IS_FAVORITE FROM channels c WHERE c.id = :id")
     abstract suspend fun channelRow(id: String): ChannelRow?
 

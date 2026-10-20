@@ -12,7 +12,6 @@ import androidx.media3.common.Player
 import com.hindstv.HindsApp
 import com.hindstv.R
 import com.hindstv.data.ChannelRepository
-import com.hindstv.data.pushRecent
 import com.hindstv.data.db.ChannelRow
 import com.hindstv.data.db.ProgrammeEntity
 import com.hindstv.data.source.SourceProfile
@@ -45,7 +44,7 @@ import kotlinx.coroutines.launch
 /** Top-level places. Live TV (with its overlays) is home; videos and radio sit beside it. */
 enum class Screen { Setup, Home, Tv, Videos, Radio, Search, Settings }
 
-enum class Overlay { None, Banner, ChannelList, Guide }
+enum class Overlay { None, Banner, ChannelList, Guide, Recent }
 
 enum class PlayStatus { Idle, Tuning, Buffering, Playing, Stopped, Error }
 
@@ -138,7 +137,8 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
     // --- Browsing --------------------------------------------------------------------------------
 
     val genres: StateFlow<List<GenreItem>> = combine(repo.favoriteLists(), repo.genres()) { lists, genres ->
-        lists.map { GenreItem(ChannelRepository.listGroupId(it.id), "★  " + it.name, it.id) } +
+        listOf(GenreItem(ChannelRepository.RECENT, app.getString(R.string.group_recent))) +
+            lists.map { GenreItem(ChannelRepository.listGroupId(it.id), "★  " + it.name, it.id) } +
             GenreItem(ChannelRepository.ALL, app.getString(R.string.genre_all)) +
             genres.map { GenreItem(it.id, it.title) }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -160,11 +160,8 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     // --- Home ------------------------------------------------------------------------------------
 
-    private val _recentIds = MutableStateFlow(store.recentChannelIds)
-
-    /** Channels tuned to, newest first (ids a re-sync dropped are skipped). */
-    val recentChannels: StateFlow<List<ChannelRow>> = _recentIds
-        .mapLatest { ids -> ids.mapNotNull { repo.channel(it) } }
+    /** Channels tuned to, newest first. */
+    val recentChannels: StateFlow<List<ChannelRow>> = repo.channels(ChannelRepository.RECENT)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     /** The first favourites list and its first few channels ("My Channels" on Home). */
@@ -175,6 +172,15 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
             repo.channels(group).map { HomeList(list.name, group, it.take(HOME_LIST_SIZE)) }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val _stripGroup = MutableStateFlow(ChannelRepository.RECENT)
+
+    /** The tab showing on the recent-channels strip: Recently watched, the first list or All. */
+    val stripGroup: StateFlow<String> = _stripGroup.asStateFlow()
+
+    val stripChannels: StateFlow<List<ChannelRow>> = _stripGroup
+        .flatMapLatest { repo.channels(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     // --- Playback --------------------------------------------------------------------------------
 
@@ -242,7 +248,10 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
     private var coldStart = true
 
     private val zapper = ZapController<ChannelRow>(viewModelScope, SystemClock::uptimeMillis) { tune(it, isRetry = false) }
-    private var previousChannel: ChannelRow? = null
+    private val _previousChannel = MutableStateFlow<ChannelRow?>(null)
+
+    /** Where ⏪ goes (shown on the recent-channels strip). */
+    val previousChannel: StateFlow<ChannelRow?> = _previousChannel.asStateFlow()
     private var autoRetries = 0
     private var resumeOnForeground = false
     private var lastBackAt = 0L
@@ -382,7 +391,8 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
             RemoteAction.OpenGuide -> openGuide()
             RemoteAction.Tracks -> container.trackPicker.open()
             RemoteAction.ShowInfo -> showBanner()
-            RemoteAction.Recall -> previousChannel?.let { play(it, zapGenre.value) }
+            RemoteAction.OpenRecent -> openRecent()
+            RemoteAction.Recall -> recall()
             RemoteAction.ToggleFavorite -> _playback.value.channel?.let { toggleFavorite(it.id) }
             RemoteAction.PlayPause -> togglePlayPause()
             RemoteAction.Back -> Unit // handled by onBackInFullscreen
@@ -396,6 +406,21 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         lastBackAt = now
         showToast(R.string.press_back_to_exit)
         return false
+    }
+
+    /** ◀ in full screen: the recent-channels strip over the picture. */
+    fun openRecent() {
+        _stripGroup.value = ChannelRepository.RECENT
+        _overlay.value = Overlay.Recent
+    }
+
+    fun selectStripGroup(groupId: String) {
+        _stripGroup.value = groupId
+    }
+
+    /** ⏪: back to the channel before this one. */
+    fun recall() {
+        _previousChannel.value?.let { play(it, zapGenre.value) }
     }
 
     fun hideChannelList() {
@@ -458,8 +483,10 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
     }
 
     fun play(channel: ChannelRow, fromGenre: String) {
-        zapGenre.value = fromGenre
-        store.lastGenreId = fromGenre
+        // Recently watched reorders on every tune, so ▲/▼ would bounce between two channels: zap through All.
+        val group = if (fromGenre == ChannelRepository.RECENT) ChannelRepository.ALL else fromGenre
+        zapGenre.value = group
+        store.lastGenreId = group
         showChannel(channel)
         zapper.request(channel)
     }
@@ -587,7 +614,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         tuneStartedAt = SystemClock.uptimeMillis()
         _tuneMs.value = null
         val current = _playback.value.channel
-        if (current != null && current.id != channel.id) previousChannel = current
+        if (current != null && current.id != channel.id) _previousChannel.value = current
         _playback.value = PlaybackUi(channel = channel, status = PlayStatus.Tuning)
         showBanner()
     }
@@ -598,10 +625,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         try {
             val url = repo.streamUrl(channel.id)
             store.lastChannelId = channel.id
-            if (_recentIds.value.firstOrNull() != channel.id) {
-                _recentIds.value = pushRecent(_recentIds.value, channel.id)
-                store.recentChannelIds = _recentIds.value
-            }
+            repo.noteWatched(channel.id)
             engine.play(url, owner = this)
         } catch (e: CancellationException) {
             throw e
@@ -792,8 +816,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
                     container.media.clearProgress()
                     _profileVersion.update { it + 1 }
                     store.lastChannelId = null
-                    store.recentChannelIds = emptyList()
-                    _recentIds.value = emptyList()
+                    repo.clearRecent()
                     zapGenre.value = ChannelRepository.ALL
                     resumeOnForeground = false
                     _playback.value = PlaybackUi()
