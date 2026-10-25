@@ -1,6 +1,5 @@
 package com.hindstv.ui.tv
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -58,7 +57,7 @@ fun TvScreen(vm: AppViewModel, onNavigate: (NavSection) -> Unit) {
         when (overlay) {
             Overlay.Banner -> InfoBanner(vm, playback, Modifier.align(Alignment.BottomCenter))
             Overlay.ChannelList -> ChannelListOverlay(vm, onNavigate)
-            Overlay.Guide -> GuideOverlay(vm)
+            Overlay.Guide -> GuideOverlay(vm, onNavigate)
             Overlay.Recent -> RecentStrip(vm)
             Overlay.None -> Unit
         }
@@ -66,7 +65,7 @@ fun TvScreen(vm: AppViewModel, onNavigate: (NavSection) -> Unit) {
     }
 
     // Back in full screen is handled by MainActivity (press twice to exit).
-    BackHandler(enabled = overlay == Overlay.Guide) { vm.closeGuide() }
+
 }
 
 @Composable

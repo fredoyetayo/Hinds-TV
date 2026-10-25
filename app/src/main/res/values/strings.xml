@@ -48,7 +48,14 @@
     <string name="now">Now</string>
     <string name="next">Next</string>
     <string name="no_guide">No guide information</string>
-    <string name="guide_hint">▲▼ channels · ◀▶ programmes · ⏪⏩ change group · ⏯ back to now · Select to watch · ☰ favourites</string>
+    <string-array name="guide_keys">
+        <item>▲▼ channels</item>
+        <item>◀▶ programmes</item>
+        <item>⏪⏩ change group</item>
+        <item>⏯ back to now</item>
+        <item>Select · watch</item>
+        <item>☰ favourites</item>
+    </string-array>
     <string name="banner_no_guide">No guide for this channel</string>
     <string-array name="banner_keys">
         <item>▲▼ change channel</item>
