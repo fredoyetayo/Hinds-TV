@@ -185,6 +185,9 @@ abstract class ChannelDao {
     @Query("SELECT COUNT(*) FROM channels")
     abstract suspend fun channelCount(): Int
 
+    @Query("SELECT COUNT(*) FROM channels")
+    abstract fun channelCountFlow(): Flow<Int>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     protected abstract suspend fun insertChannels(channels: List<ChannelEntity>)
 

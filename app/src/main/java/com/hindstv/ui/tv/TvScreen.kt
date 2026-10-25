@@ -19,10 +19,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.Player
 import androidx.tv.material3.MaterialTheme
@@ -34,10 +36,11 @@ import com.hindstv.ui.Overlay
 import com.hindstv.ui.PlayStatus
 import com.hindstv.ui.PlaybackUi
 import com.hindstv.ui.components.ChannelLogo
-import com.hindstv.ui.components.NavSection
-import com.hindstv.ui.components.VideoSurface
+import com.hindstv.ui.components.ChannelWordmark
 import com.hindstv.ui.components.Clock
+import com.hindstv.ui.components.NavSection
 import com.hindstv.ui.components.ProgressLine
+import com.hindstv.ui.components.VideoSurface
 import com.hindstv.ui.components.formatTime
 import com.hindstv.ui.components.progress
 import com.hindstv.ui.components.timeRange
@@ -79,7 +82,7 @@ private fun VideoLayer(player: Player, playback: PlaybackUi) {
     }
 }
 
-/** Bottom info bar: channel, now/next with progress, clock. */
+/** Bottom info bar: channel, now/next with progress, clock and tune time, then the keys. */
 @Composable
 private fun InfoBanner(vm: AppViewModel, playback: PlaybackUi, modifier: Modifier = Modifier) {
     val channel = playback.channel ?: return
@@ -88,27 +91,33 @@ private fun InfoBanner(vm: AppViewModel, playback: PlaybackUi, modifier: Modifie
     val now = nowNext.firstOrNull()?.takeIf { it.start <= minute }
     val next = nowNext.firstOrNull { it !== now }
 
-    Box(
+    Column(
         modifier
             .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(Color.Transparent, HindsColors.Background.copy(alpha = 0.92f), HindsColors.Background)))
-            .padding(start = 56.dp, end = 56.dp, top = 72.dp, bottom = 36.dp),
+            .background(Brush.verticalGradient(0f to Color.Transparent, 0.42f to HindsColors.Background.copy(alpha = 0.92f), 1f to HindsColors.Background))
+            .padding(start = 48.dp, end = 48.dp, top = 78.dp, bottom = 26.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-            ChannelLogo(channel.logo, channel.name, Modifier.size(width = 112.dp, height = 72.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            ChannelWordmark(
+                channel,
+                Modifier.size(width = 112.dp, height = 72.dp).background(HindsColors.Plate, HindsShapes.Small).padding(10.dp),
+                initialsSize = 22.sp,
+            )
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (channel.number > 0) {
-                        Text(channel.number.toString(), style = MaterialTheme.typography.titleLarge, color = HindsColors.Accent)
+                        Text(channel.number.toString(), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = HindsColors.Accent)
                     }
                     Text(
                         channel.name,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = (-0.5).sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
                     )
-                    if (channel.isFavorite) Text("★", style = MaterialTheme.typography.titleLarge, color = HindsColors.Accent)
+                    if (channel.isFavorite) Text("★", fontSize = 20.sp, color = HindsColors.Accent)
                 }
                 if (now != null) {
                     ProgrammeLine(stringResource(R.string.now), now, emphasised = true)
@@ -116,16 +125,21 @@ private fun InfoBanner(vm: AppViewModel, playback: PlaybackUi, modifier: Modifie
                 }
                 next?.let { ProgrammeLine(stringResource(R.string.next), it, emphasised = false) }
                 if (now == null && next == null) {
-                    Text(stringResource(R.string.banner_hint), style = MaterialTheme.typography.bodySmall, color = HindsColors.Muted)
+                    Text(stringResource(R.string.banner_no_guide), fontSize = 14.sp, fontWeight = FontWeight.Medium, color = HindsColors.Muted)
                 }
             }
-            Column(Modifier.align(Alignment.Top), horizontalAlignment = Alignment.End) {
-                Clock(minute)
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(formatTime(minute), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp)
                 // Speed check for the owner: time from the button press to the picture.
                 val tuneMs by vm.tuneMs.collectAsStateWithLifecycle()
                 tuneMs?.let {
-                    Text(stringResource(R.string.tuned_in, it / 1000.0), style = MaterialTheme.typography.labelSmall, color = HindsColors.Faint)
+                    Text(stringResource(R.string.tuned_in, it / 1000.0), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = HindsColors.Faint)
                 }
+            }
+        }
+        Row(Modifier.padding(top = 22.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+            stringArrayResource(R.array.banner_keys).forEach {
+                Text(it, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = HindsColors.Muted, maxLines = 1)
             }
         }
     }
@@ -133,16 +147,24 @@ private fun InfoBanner(vm: AppViewModel, playback: PlaybackUi, modifier: Modifie
 
 @Composable
 private fun ProgrammeLine(label: String, programme: ProgrammeEntity, emphasised: Boolean) {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label.uppercase(), style = MaterialTheme.typography.labelMedium, color = if (emphasised) HindsColors.Accent else HindsColors.Faint)
+    Row(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            label.uppercase(),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.5.sp,
+            color = if (emphasised) HindsColors.Accent else HindsColors.Faint,
+        )
         Text(
             if (emphasised) programme.timeRange() else formatTime(programme.start),
-            style = MaterialTheme.typography.bodyMedium,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
             color = HindsColors.Muted,
         )
         Text(
             programme.title,
-            style = if (emphasised) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyMedium,
+            fontSize = if (emphasised) 16.sp else 14.sp,
+            fontWeight = if (emphasised) FontWeight.Bold else FontWeight.SemiBold,
             color = if (emphasised) HindsColors.Text else HindsColors.Muted,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

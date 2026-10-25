@@ -134,7 +134,7 @@ fun GuideOverlay(vm: AppViewModel) {
 
         Column(Modifier.fillMaxSize().padding(horizontal = 48.dp)) {
             GuideHeader(
-                groupTitle = genres.firstOrNull { it.id == selectedGenre }?.title.orEmpty(),
+                groupTitle = genres.firstOrNull { it.id == selectedGenre }?.displayTitle.orEmpty(),
                 channel = focusedChannel,
                 programme = focused,
                 nowSec = minute,

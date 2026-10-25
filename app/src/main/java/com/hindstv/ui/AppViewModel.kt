@@ -58,7 +58,19 @@ data class PlaybackUi(
 /** "My Channels" on Home: a favourites list's name, its group id (for zapping) and first channels. */
 data class HomeList(val name: String, val groupId: String, val channels: List<ChannelRow>)
 
-data class GenreItem(val id: String, val title: String, val listId: Long? = null)
+data class GenreItem(
+    val id: String,
+    val title: String,
+    val listId: Long? = null,
+    val kind: GroupKind = GroupKind.Provider,
+    /** Shown beside favourites lists and All channels; null for the provider's groups. */
+    val count: Int? = null,
+) {
+    /** With the ★ for favourites lists, where the group is named on its own (the guide header). */
+    val displayTitle: String get() = if (listId != null) "★  $title" else title
+}
+
+enum class GroupKind { Recent, List, All, Provider }
 
 /** "Add to list" for one channel: which of the user's lists it is in. */
 data class ListPickerUi(
@@ -136,10 +148,10 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     // --- Browsing --------------------------------------------------------------------------------
 
-    val genres: StateFlow<List<GenreItem>> = combine(repo.favoriteLists(), repo.genres()) { lists, genres ->
-        listOf(GenreItem(ChannelRepository.RECENT, app.getString(R.string.group_recent))) +
-            lists.map { GenreItem(ChannelRepository.listGroupId(it.id), "★  " + it.name, it.id) } +
-            GenreItem(ChannelRepository.ALL, app.getString(R.string.genre_all)) +
+    val genres: StateFlow<List<GenreItem>> = combine(repo.listSummaries(), repo.genres(), repo.channelCountFlow()) { lists, genres, all ->
+        listOf(GenreItem(ChannelRepository.RECENT, app.getString(R.string.group_recent), kind = GroupKind.Recent)) +
+            lists.map { GenreItem(ChannelRepository.listGroupId(it.id), it.name, it.id, GroupKind.List, it.count) } +
+            GenreItem(ChannelRepository.ALL, app.getString(R.string.genre_all), kind = GroupKind.All, count = all) +
             genres.map { GenreItem(it.id, it.title) }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -531,7 +543,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
     /** ☰ on a list in the group column: rename or delete it. */
     fun editList(listId: Long) {
         val list = genres.value.firstOrNull { it.listId == listId } ?: return
-        _listEdit.value = ListEditUi(listId, list.title.removePrefix("★  "))
+        _listEdit.value = ListEditUi(listId, list.title)
     }
 
     /** Rename/delete from Settings → Favourites. */

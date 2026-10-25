@@ -68,12 +68,18 @@ fun Clock(nowSec: Long, modifier: Modifier = Modifier) {
 
 /** A thin progress line (programme elapsed time). */
 @Composable
-fun ProgressLine(fraction: Float, modifier: Modifier = Modifier, height: Dp = 3.dp, color: Color = HindsColors.Accent) {
+fun ProgressLine(
+    fraction: Float,
+    modifier: Modifier = Modifier,
+    height: Dp = 3.dp,
+    color: Color = HindsColors.Accent,
+    track: Color = HindsColors.Track,
+) {
     Box(
         modifier
             .height(height)
             .clip(HindsShapes.Pill)
-            .background(HindsColors.Track),
+            .background(track),
     ) {
         Box(
             Modifier

@@ -92,6 +92,8 @@ class ChannelRepository(
 
     suspend fun channelCount(): Int = dao.channelCount()
 
+    fun channelCountFlow(): Flow<Int> = dao.channelCountFlow()
+
     suspend fun deleteList(listId: Long) = dao.deleteList(listId)
 
     /** Adds the channel to the list or takes it out. Returns true if it is now in the list. */
