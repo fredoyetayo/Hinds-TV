@@ -258,10 +258,10 @@ private fun GuideChannelCell(channel: ChannelRow) {
 private fun GuideHeader(group: GenreItem?, channel: ChannelRow?, programme: ProgrammeEntity?, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            GuideKeyCap("⏪")
+            GuideKeyCap("◀◀")
             if (group?.listId != null) Text("★", fontSize = 12.sp, color = HindsColors.Accent)
             Text(group?.title.orEmpty(), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            GuideKeyCap("⏩")
+            GuideKeyCap("▶▶")
         }
         Text(
             programme?.title ?: channel?.name.orEmpty(),
@@ -335,10 +335,14 @@ private fun DrawScope.drawGuide(
     val titleStyle = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Bold)
     val timeStyle = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
 
-    // Timeline: a time at the start of each half hour.
+    // Timeline: a time at the start of each half hour, except where the "now" tag covers it.
+    val nowX = if (nowSec in windowStart until windowStart + SPAN_S) xOf(nowSec) else null
     var t = windowStart
     while (t < windowStart + SPAN_S) {
-        drawText(measurer, formatTime(t), Offset(xOf(t), 0f), label)
+        val x = xOf(t)
+        if (nowX == null || x + 34.dp.toPx() < nowX - 22.dp.toPx() || x > nowX + 22.dp.toPx()) {
+            drawText(measurer, formatTime(t), Offset(x, 0f), label)
+        }
         t += SLOT_S
     }
 

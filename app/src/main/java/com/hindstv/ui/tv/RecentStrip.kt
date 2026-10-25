@@ -124,7 +124,7 @@ fun BoxScope.RecentStrip(vm: AppViewModel) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                KeyCap("⏪")
+                KeyCap("◀◀")
                 Text(stringResource(R.string.last_channel), fontSize = 11.sp, fontWeight = FontWeight.Medium, color = HindsColors.Muted)
                 Text(listOf(last.number.takeIf { it > 0 }?.toString(), last.name).filterNotNull().joinToString(" "), fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }

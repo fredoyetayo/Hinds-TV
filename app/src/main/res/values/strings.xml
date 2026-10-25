@@ -42,7 +42,7 @@
     <string name="channel_count">%1$,d channels</string>
     <string name="hint_list_watch">Select · watch</string>
     <string name="hint_list_add">☰ add to a list</string>
-    <string name="hint_list_jump">⏪ ⏩ jump 10</string>
+    <string name="hint_list_jump">◀◀ ▶▶ jump 10</string>
     <string name="hint_list_back">Back · sections, then close</string>
 
     <string name="now">Now</string>
@@ -51,7 +51,7 @@
     <string-array name="guide_keys">
         <item>▲▼ channels</item>
         <item>◀▶ programmes</item>
-        <item>⏪⏩ change group</item>
+        <item>◀◀ ▶▶ change group</item>
         <item>⏯ back to now</item>
         <item>Select · watch</item>
         <item>☰ favourites</item>
@@ -62,8 +62,8 @@
         <item>Select · channel list</item>
         <item>◀ recent channels</item>
         <item>☰ favourite</item>
-        <item>⏪ previous</item>
-        <item>⏩ audio &amp; subtitles</item>
+        <item>◀◀ previous</item>
+        <item>▶▶ audio &amp; subtitles</item>
     </string-array>
 
     <string name="press_back_to_exit">Press Back again to exit</string>
@@ -113,7 +113,7 @@
     <string name="home_watch">▶  Watch</string>
     <string name="home_welcome">Welcome to Hinds TV</string>
     <string name="home_welcome_hint">Pick a channel to start watching.</string>
-    <string name="vod_hint">◀ ▶ 10 s · ⏪ ⏩ 30 s · Select pause · ☰ audio &amp; subtitles · Back to details</string>
+    <string name="vod_hint">◀ ▶ 10 s · ◀◀ ▶▶ 30 s · Select pause · ☰ audio &amp; subtitles · Back to details</string>
     <string name="paused">Paused</string>
     <string name="loading_video">Loading video…</string>
     <string name="video_retry_hint">Press Select to try again, or Back to return.</string>
