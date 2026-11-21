@@ -415,6 +415,13 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
                 return
             }
             val channel = _playback.value.channel ?: return
+            if (error.errorCode == PlaybackException.ERROR_CODE_TIMEOUT) {
+                // The player, not the stream: e.g. the picture surface was slow to come back after the
+                // TV changed refresh rate. Carry on with the same stream; never a reason to change feed.
+                Diagnostics.add("player", "player timed out; continuing the same stream")
+                engine.player.prepare()
+                return
+            }
             if (autoRetries < MAX_AUTO_RETRIES) {
                 // Stream links are short-lived; one retry with a fresh link fixes most failures.
                 autoRetries++
@@ -423,10 +430,14 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
                     delay(1_000)
                     if (_playback.value.channel?.id == channel.id) tune(channel, isRetry = true)
                 }
-            } else if (!tryBackupFeed(channel)) {
+            } else if (!isStreamFailure(error) || !tryBackupFeed(channel)) {
                 _playback.update { it.copy(status = PlayStatus.Error, error = Errors.describe(error)) }
             }
         }
+
+        /** Network and stream errors can be another feed's chance; decoder or player trouble can't. */
+        private fun isStreamFailure(error: PlaybackException): Boolean =
+            error.errorCode in 2000..2999 || error.errorCode in 3000..3999
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             if (engine.owner === this@AppViewModel) updateTimeshift()
@@ -768,7 +779,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         zapper.request(next)
     }
 
-    private fun showChannel(channel: ChannelRow) {
+    private fun showChannel(channel: ChannelRow, banner: Boolean = true) {
         retryJob?.cancel()
         stallJob?.cancel()
         skipJob?.cancel()
@@ -778,7 +789,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         val current = _playback.value.channel
         if (current != null && current.id != channel.id) _previousChannel.value = current
         _playback.value = PlaybackUi(channel = channel, status = PlayStatus.Tuning)
-        showBanner()
+        if (banner) showBanner()
     }
 
     private suspend fun tune(channel: ChannelRow, isRetry: Boolean) {
@@ -788,7 +799,8 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
             // The channel Home Assistant is recording plays from the recording: the hub has the stream.
             val url = recordingUrlFor(channel) ?: repo.streamUrl(channel.id)
             store.lastChannelId = channel.id
-            repo.noteWatched(channel.id)
+            // Backup feeds tried on the way aren't "watched": only the channel the user chose is.
+            if (failoverOrigin == null || failoverOrigin?.id == channel.id) repo.noteWatched(channel.id)
             engine.play(url, owner = this, timeshift = store.liveRewind)
             updateTimeshift()
         } catch (e: CancellationException) {
@@ -837,7 +849,8 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
             }
             Diagnostics.add("feeds", "switching to another feed of the same channel")
             failoverTried += next.id
-            showChannel(next)
+            // Leave an open list or strip alone: the user may be in the middle of choosing.
+            showChannel(next, banner = _overlay.value == Overlay.None || _overlay.value == Overlay.Banner)
             showToast(app.getString(R.string.feeds_switched, next.name))
             zapper.request(next)
         }

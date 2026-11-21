@@ -157,6 +157,7 @@ fun BoxScope.RecentStrip(vm: AppViewModel) {
         }
         val listState = rememberLazyListState()
         val focusIndex = channels.indexOfFirst { it.id == current?.id }.coerceAtLeast(0)
+        var tilesFocused by remember { mutableStateOf(false) }
         if (channels.isEmpty()) {
             Text(
                 stringResource(R.string.row_empty),
@@ -193,9 +194,14 @@ fun BoxScope.RecentStrip(vm: AppViewModel) {
                     )
                 }
             }
+            // Focus goes to the tiles once, when the strip opens. Changing tab (which happens as focus
+            // moves along the tabs) only scrolls, so ▶ can carry on to the next tab.
             LaunchedEffect(group, channels.isNotEmpty()) {
                 listState.scrollToItem(focusIndex)
-                tileFocus.requestFocusSoon()
+                if (!tilesFocused) {
+                    tilesFocused = true
+                    tileFocus.requestFocusSoon()
+                }
             }
         }
     }
