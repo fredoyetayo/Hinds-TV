@@ -86,6 +86,13 @@ class ChannelRepository(
         return MatchFinder.find(home, away, airing, named)?.let { dao.channelRow(it) }
     }
 
+    /** Programmes titled like [title] on between [from] and [to]. */
+    suspend fun programmesTitled(title: String, from: Long, to: Long, limit: Int = 20): List<ProgrammeEntity> =
+        epgDao.titledBetween(title, from, to, limit)
+
+    /** A channel row unless its group is hidden. */
+    suspend fun visibleChannel(id: String): ChannelRow? = dao.channelRow(id)?.takeIf { it.genreId !in hiddenGroups.value }
+
     /** The portal command for a channel (for recordings the hub starts later). */
     suspend fun channelCmd(channelId: String): String? = dao.cmd(channelId)
 

@@ -11,6 +11,7 @@
 Standard library only. Hinds TV and the kitchen frame talk to it over plain HTTP on port 8642.
 """
 
+import collections
 import json
 import os
 import re
@@ -27,7 +28,7 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from zoneinfo import ZoneInfo
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 PORT = 8642
 DATA = os.environ.get("HUB_DATA", "/data")
 MEDIA = os.environ.get("HUB_MEDIA", "/media/hinds")
@@ -46,8 +47,13 @@ ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer/all/teams/{}/schedu
 lock = threading.RLock()
 
 
+LOG = collections.deque(maxlen=300)
+
+
 def log(*parts):
-    print(time.strftime("%H:%M:%S"), *parts, flush=True)
+    line = " ".join([time.strftime("%H:%M:%S")] + [str(p) for p in parts])
+    LOG.append(line)
+    print(line, flush=True)
 
 
 def load(name, default):
@@ -383,6 +389,7 @@ class Recorder(threading.Thread):
         self.proc = None
         self.stopped = threading.Event()
         self.grew = threading.Condition()
+        self.why = ""
 
     def run(self):
         m = self.meta
@@ -440,6 +447,8 @@ class Recorder(threading.Thread):
         except Exception:
             log("recorder:", traceback.format_exc())
         finally:
+            m["ended"] = m.get("ended") or ("stopped: " + self.why if self.stopped.is_set()
+                                            else "finished" if time.time() >= m["stop"] - 5 else "gave up")
             m["recording"] = False
             m["size"] = os.path.getsize(rec_path(m["id"])) if os.path.exists(rec_path(m["id"])) else 0
             m["duration_s"] = int(min(time.time(), m["stop"]) - m["start"])
@@ -450,9 +459,11 @@ class Recorder(threading.Thread):
             with self.grew:
                 self.grew.notify_all()
             publish_recording()
-            log("recording finished:", m["title"])
+            log("recording ended:", m["title"], "-", m["ended"], "after", m["duration_s"], "s")
 
-    def stop(self):
+    def stop(self, why="asked"):
+        self.why = why
+        log("recording stop requested:", why)
         self.stopped.set()
         if self.proc and self.proc.poll() is None:
             self.proc.terminate()
@@ -589,6 +600,8 @@ class Api(BaseHTTPRequestHandler):
                 with lock:
                     matches = [describe(m) for m in state["matches"]]
                 self.send_json({"matches": matches})
+            elif path == "/log":
+                self.send_json({"log": list(LOG)})
             elif path == "/recordings":
                 self.send_json({"recordings": recordings()})
             elif path.startswith("/recordings/") and path.endswith(".ts"):
@@ -633,7 +646,7 @@ class Api(BaseHTTPRequestHandler):
                 with lock:
                     r = state["recording"]
                 if r:
-                    r.stop()
+                    r.stop("by %s (%s)" % (self.client_address[0], self.headers.get("User-Agent", "?")[:60]))
                 self.send_json({"ok": True})
             elif path == "/schedule":
                 item = {"id": uuid.uuid4().hex[:8], "cmd": b["cmd"], "channel": b.get("channel", ""),

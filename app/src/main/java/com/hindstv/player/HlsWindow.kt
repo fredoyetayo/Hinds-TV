@@ -13,7 +13,7 @@ import androidx.media3.common.util.UriUtil
  * byte-range streams pass through untouched ([merge] returns null). Pure, so it is unit-tested.
  */
 @OptIn(UnstableApi::class)
-class HlsWindow(private val maxWindowS: Double = 20 * 60.0, private val firstKeep: Int = 3) {
+class HlsWindow(private val maxWindowS: Double = 10 * 60.0, private val firstKeep: Int = 3) {
     private class Entry(val seq: Long, val duration: Double, val tags: List<String>, val uri: String, val discontinuity: Boolean, val dnum: Long)
 
     private val entries = ArrayDeque<Entry>()

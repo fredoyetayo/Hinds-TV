@@ -46,9 +46,10 @@ object FootballMatcher {
         if (!fixture.containsMatchIn(name) || otherSports.any { containsWord(n, it) }) return false
         val football = competitions.any { containsWord(n, it) } || listOf("epl", "ucl", "uel", "pl", "efl", "spl").any { containsWord(n, it) }
         if (!football || minuteOfDay == null) return football
-        // "… 17:30": only from half an hour before kick-off until the match is surely over.
+        // "… 17:30": only from half an hour before kick-off until the match is surely over. Without a
+        // time there's no telling whether it's on (event channels keep their names all week), so no.
         val times = kickOff.findAll(name).map { it.groupValues[1].toInt() * 60 + it.groupValues[2].toInt() }.toList()
-        if (times.isEmpty()) return true
+        if (times.isEmpty()) return false
         return times.any { k ->
             val since = ((minuteOfDay - k) % DAY + DAY) % DAY // minutes since kick-off, wrapping at midnight
             since <= MATCH_MINUTES || since >= DAY - LEAD_MINUTES

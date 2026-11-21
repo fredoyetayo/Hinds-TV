@@ -21,7 +21,12 @@ import com.hindstv.data.stalker.PortalProfile
 import com.hindstv.data.stalker.StalkerClient
 import com.hindstv.hub.HubMatch
 import com.hindstv.hub.HubStatus
+import com.hindstv.live.Pick
+import com.hindstv.ui.components.formatDay
+import com.hindstv.ui.components.formatTime
+import com.hindstv.live.Recommender
 import com.hindstv.live.Reminder
+import com.hindstv.live.Taste
 import com.hindstv.player.ZapController
 import kotlinx.coroutines.CancellationException
 import java.util.Calendar
@@ -83,6 +88,9 @@ data class GroupMenuUi(val groupId: String, val title: String, val pinned: Boole
 
 /** Live pause/rewind state for the banner: how far behind live, and whether it is paused. */
 data class TimeshiftUi(val behindMs: Long, val paused: Boolean, val pendingSkipMs: Long = 0)
+
+/** A recommendation on Home: the channel and what's on (or coming up) there. */
+data class HomePick(val channel: ChannelRow, val pick: Pick)
 
 /** One of the followed teams is about to play ([kickingOff] once it has started). */
 data class MatchAlertUi(val match: HubMatch, val kickingOff: Boolean)
@@ -287,7 +295,22 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     private val alertsShown = mutableSetOf<String>()
     private var fixturesAt = 0L
-    private var fixtures: List<HubMatch> = emptyList()
+    private val _matches = MutableStateFlow<List<HubMatch>>(emptyList())
+
+    /** The followed teams' matches (live and coming up), for Home. Empty without Home Assistant. */
+    val matches: StateFlow<List<HubMatch>> = _matches.asStateFlow()
+    private val fixtures: List<HubMatch> get() = _matches.value
+
+    /** Channels with football on now, for Home. */
+    val footballNow: StateFlow<List<ChannelRow>> = repo.channels(ChannelRepository.FOOTBALL)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val taste = Taste.decode(store.taste)
+    private val _picks = MutableStateFlow<List<HomePick>>(emptyList())
+
+    /** Home's "For you". */
+    val picks: StateFlow<List<HomePick>> = _picks.asStateFlow()
+    private var picksAt = 0L
     private var reportedChannel: String? = null
 
     private val _toast = MutableStateFlow<String?>(null)
@@ -461,6 +484,8 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
             combine(minute, _epgRevision) { now, _ -> now }.collect { now ->
                 runCatching { repo.refreshFootball(now) }
                 checkReminders(now)
+                noteTaste(now)
+                if (_screen.value == Screen.Home || now - picksAt >= PICKS_EVERY_S) refreshPicks(now)
             }
         }
         viewModelScope.launch { pollHub() }
@@ -837,6 +862,9 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
      */
     private fun tryBackupFeed(failed: ChannelRow): Boolean {
         if (!store.backupFeeds) return false
+        // While Home Assistant records, the provider's one stream belongs to the recorder: a backup feed
+        // would take it and cut the recording. The normal retry plays the recording again instead.
+        if (_hubStatus.value?.recording?.recording == true) return false
         val origin = failoverOrigin ?: failed.also { failoverOrigin = it }
         failoverTried += failed.id
         viewModelScope.launch {
@@ -977,8 +1005,10 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
                 try {
                     _hubStatus.value = hub.status()
                     val now = System.currentTimeMillis() / 1000
-                    if (now - fixturesAt >= FIXTURES_EVERY_S) {
-                        fixtures = hub.fixtures()
+                    // Every 10 minutes; every 30 s while a match is on or about to be (live scores on Home).
+                    val busy = fixtures.any { it.state == "in" || it.kickoff in now - 300..now + 900 }
+                    if (now - fixturesAt >= (if (busy) 0 else FIXTURES_EVERY_S)) {
+                        _matches.value = hub.fixtures().filter { it.state != "post" }
                         fixturesAt = now
                     }
                     checkMatchAlerts(now)
@@ -1015,9 +1045,23 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
     fun watchMatch() {
         val alert = _matchAlert.value ?: return
         _matchAlert.value = null
+        watchMatch(alert.match)
+    }
+
+    /** A match card on Home: live or about to start, go to it; later, say when (the reminder comes anyway). */
+    fun openMatch(match: HubMatch) {
+        val now = System.currentTimeMillis() / 1000
+        if (match.state == "in" || match.kickoff - now <= MATCH_LEAD_S) {
+            watchMatch(match)
+        } else {
+            showToast(app.getString(R.string.match_later, match.title, formatDay(match.kickoff), formatTime(match.kickoff)))
+        }
+    }
+
+    private fun watchMatch(match: HubMatch) {
         viewModelScope.launch {
-            val at = maxOf(System.currentTimeMillis() / 1000, alert.match.kickoff) + 10 * 60
-            val channel = repo.findMatchChannel(alert.match.home, alert.match.away, at)
+            val at = maxOf(System.currentTimeMillis() / 1000, match.kickoff) + 10 * 60
+            val channel = repo.findMatchChannel(match.home, match.away, at)
             if (channel != null) {
                 watch(channel, ChannelRepository.FOOTBALL)
             } else {
@@ -1174,6 +1218,34 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
     private fun formatClock(sec: Long): String =
         java.text.SimpleDateFormat("HH:mm", java.util.Locale.UK).format(java.util.Date(sec * 1000))
 
+    // --- Home recommendations ----------------------------------------------------------------------
+
+    /** A minute of live TV counts towards that programme's title. */
+    private fun noteTaste(now: Long) {
+        if (_screen.value != Screen.Tv || _playback.value.status != PlayStatus.Playing) return
+        val title = nowNext.value.firstOrNull { it.start <= now && it.stop > now }?.title ?: return
+        taste.add(title)
+        store.taste = taste.encode()
+    }
+
+    private suspend fun refreshPicks(now: Long) {
+        picksAt = now
+        try {
+            val liked = taste.liked()
+            val airing = onAir.value.values.map { Recommender.Slot(it.channelId, it.title, it.start, it.stop) }
+            val upcoming = liked.take(LIKED_SEARCHES).flatMap { title ->
+                repo.programmesTitled(title, now, now + PICKS_AHEAD_S).map { Recommender.Slot(it.channelId, it.title, it.start, it.stop) }
+            }
+            val mine = (recentChannels.value.map { it.id } + homeList.value?.channels.orEmpty().map { it.id }).distinct()
+            val picks = Recommender.picks(now, liked, airing, upcoming, mine, excludeChannel = null)
+            _picks.value = picks.mapNotNull { p -> repo.visibleChannel(p.channelId)?.let { HomePick(it, p) } }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Recommendations are a nicety; the rest of Home doesn't depend on them.
+        }
+    }
+
     // --- Group menu ------------------------------------------------------------------------------
 
     fun openGroupMenu(groupId: String) {
@@ -1258,6 +1330,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
     /** Leaves live TV for videos or radio: the one provider connection is theirs now. */
     fun openSection(screen: Screen) {
         if (_screen.value == screen) return
+        if (screen == Screen.Home) viewModelScope.launch { refreshPicks(System.currentTimeMillis() / 1000) }
         if (_screen.value == Screen.Tv) releaseLive()
         _screen.value = screen
     }
@@ -1415,6 +1488,9 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
     companion object {
         private const val MAX_AUTO_RETRIES = 1
         private const val HUB_POLL_MS = 30_000L
+        private const val PICKS_EVERY_S = 5 * 60L
+        private const val PICKS_AHEAD_S = 6 * 60 * 60L
+        private const val LIKED_SEARCHES = 8
         private const val FIXTURES_EVERY_S = 10 * 60L
         private const val MATCH_LEAD_S = 30 * 60L
         private const val KICKOFF_GRACE_S = 10 * 60L

@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 /**
  * Pause and rewind for live HLS channels. The player plays the provider's stream as usual, but:
  * - its playlist requests go through [HlsWindow], which keeps listing every segment since playback
- *   began (up to ~20 minutes) instead of the provider's last few;
+ *   began (up to ~10 minutes) instead of the provider's last few;
  * - segments go through a disk [Cache], so going back never asks the provider again;
  * - a background prefetch keeps caching new segments while paused, so resuming later still works
  *   after the provider has dropped them.

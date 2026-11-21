@@ -119,6 +119,11 @@ class ProfileStore(context: Context) {
         get() = prefs.getString(KEY_HUB_URL, null)?.takeIf { it.isNotBlank() }
         set(value) = prefs.edit { putString(KEY_HUB_URL, value?.trim()?.takeIf { it.isNotEmpty() }) }
 
+    /** Minutes watched per programme title (`Taste.encode`), for Home's recommendations. */
+    var taste: String?
+        get() = prefs.getString(KEY_TASTE, null)
+        set(value) = prefs.edit { putString(KEY_TASTE, value) }
+
     /** Guide reminders, encoded by `Reminder.encode`. */
     var reminders: String?
         get() = prefs.getString(KEY_REMINDERS, null)
@@ -183,6 +188,7 @@ class ProfileStore(context: Context) {
         const val KEY_HIDDEN_GROUPS = "hidden_groups"
         const val KEY_REMINDERS = "reminders"
         const val KEY_HUB_URL = "hub_url"
+        const val KEY_TASTE = "taste"
         const val KEY_LIVE_REWIND = "live_rewind"
         const val KEY_BACKUP_FEEDS = "backup_feeds"
         const val KEY_RECENT_CHANNELS = "recent_channels"

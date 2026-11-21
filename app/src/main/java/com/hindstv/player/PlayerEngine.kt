@@ -194,7 +194,7 @@ class PlayerEngine(private val context: Context, http: OkHttpClient) {
     private fun startSession(url: String): TimeshiftSession? {
         val dir = context.cacheDir.resolve("timeshift")
         dir.mkdirs()
-        // Leave the stick room: at most ~1.2 GB (about 20 minutes of HD), never more than half the free space.
+        // Leave the stick room: at most ~600 MB (about 10 minutes of HD), never more than half the free space.
         val maxBytes = minOf(MAX_TIMESHIFT_BYTES, dir.usableSpace / 2)
         if (maxBytes < MIN_TIMESHIFT_BYTES) {
             Diagnostics.add("timeshift", "not enough free space to rewind live TV")
@@ -322,7 +322,7 @@ class PlayerEngine(private val context: Context, http: OkHttpClient) {
     }
 
     private companion object {
-        const val MAX_TIMESHIFT_BYTES = 1_200L * 1024 * 1024
+        const val MAX_TIMESHIFT_BYTES = 600L * 1024 * 1024
         const val MIN_TIMESHIFT_BYTES = 200L * 1024 * 1024
         /** Closer to live than this counts as live. */
         const val LIVE_EDGE_MS = 3_000L

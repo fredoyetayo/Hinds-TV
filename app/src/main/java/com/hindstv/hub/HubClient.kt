@@ -31,7 +31,12 @@ data class HubMatch(
     val kickoffLocal: String,
     val state: String,
     val detail: String,
-)
+    val homeScore: String? = null,
+    val awayScore: String? = null,
+) {
+    /** "2–1" once it has started, else null. */
+    val score: String? get() = if (homeScore != null && awayScore != null && state != "pre") "$homeScore–$awayScore" else null
+}
 
 data class HubRecording(
     val id: String,
@@ -96,6 +101,8 @@ class HubClient(http: OkHttpClient, private val baseUrl: () -> String?) {
                 kickoffLocal = o.str("kickoff_local").orEmpty(),
                 state = o.str("state") ?: "pre",
                 detail = o.str("detail").orEmpty(),
+                homeScore = o.str("home_score"),
+                awayScore = o.str("away_score"),
             )
         }
 

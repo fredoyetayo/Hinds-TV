@@ -120,6 +120,16 @@
     <string name="home_add_hint">Press ☰ on any channel to add it here</string>
     <string name="home_last_watched">Last watched</string>
     <string name="home_watch">▶  Watch</string>
+    <string name="home_live_match">Live now</string>
+    <string name="home_watch_match">▶  Watch the match</string>
+    <string name="home_your_matches">Your matches</string>
+    <string name="home_football_now">Football on now</string>
+    <string name="home_for_you">For you</string>
+    <string name="home_live">LIVE</string>
+    <string name="home_on_now">On now</string>
+    <string name="home_at">At %1$s</string>
+    <string name="home_you_watch">You watch this</string>
+    <string name="match_later">%1$s kicks off %2$s at %3$s. You\'ll get a reminder before.</string>
     <string name="home_welcome">Welcome to Hinds TV</string>
     <string name="home_welcome_hint">Pick a channel to start watching.</string>
     <string name="vod_hint">◀ ▶ 10 s · ◀◀ ▶▶ 30 s · Select pause · ☰ audio &amp; subtitles · Back to details</string>
@@ -275,7 +285,7 @@
     <!-- Settings → Playback -->
     <string name="settings_toggle">%1$s: %2$s</string>
     <string name="settings_live_rewind">Pause and rewind live TV</string>
-    <string name="settings_live_rewind_hint">Keeps up to about 20 minutes of the channel on the Fire TV, so you can pause and rewind with ⏯ and ◀◀ ▶▶.</string>
+    <string name="settings_live_rewind_hint">Keeps up to about 10 minutes of the channel on the Fire TV, so you can pause and rewind with ⏯ and ◀◀ ▶▶.</string>
     <string name="settings_backup_feeds">Switch to a backup feed</string>
     <string name="settings_backup_feeds_hint">If a channel stops or keeps buffering, Hinds TV moves to another copy of it (HD, FHD, backup).</string>
     <string name="group_pinned">Pinned to the top of your groups</string>

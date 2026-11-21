@@ -2,6 +2,10 @@ package com.hindstv.ui.home
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,7 +55,9 @@ import com.hindstv.data.db.ProgrammeEntity
 import com.hindstv.data.db.WatchProgressEntity
 import com.hindstv.player.ResumePolicy
 import com.hindstv.ui.AppViewModel
+import com.hindstv.hub.HubMatch
 import com.hindstv.ui.HomeList
+import com.hindstv.ui.HomePick
 import com.hindstv.ui.VideoViewModel
 import com.hindstv.ui.components.Artwork
 import com.hindstv.ui.components.ChannelTile
@@ -77,8 +83,10 @@ import com.hindstv.ui.theme.LocalHindsPalette
 import com.hindstv.ui.theme.wallpapersFor
 
 /**
- * Home (opt-in start screen): what you were watching, your first favourites list and the channels
- * you watched last. Nothing plays here, so the provider connection stays free until you pick.
+ * Home (opt-in start screen): a live match of your teams when there is one, else what you were
+ * watching; then your matches (live scores, kick-offs), football on now, picks for you, your first
+ * favourites list and the channels you watched last. Nothing plays here, so the provider connection
+ * stays free until you pick.
  */
 @Composable
 fun HomeScreen(
@@ -95,6 +103,10 @@ fun HomeScreen(
     val homeList by vm.homeList.collectAsStateWithLifecycle()
     val onAir by vm.onAir.collectAsStateWithLifecycle()
     val now by vm.minute.collectAsStateWithLifecycle()
+    val matches by vm.matches.collectAsStateWithLifecycle()
+    val footballNow by vm.footballNow.collectAsStateWithLifecycle()
+    val picks by vm.picks.collectAsStateWithLifecycle()
+    val liveMatch = matches.firstOrNull { it.state == "in" }
     val navBar = rememberNavBarState()
     val firstFocus = remember { FocusRequester() }
     val hero = continueWatching.firstOrNull()
@@ -119,25 +131,46 @@ fun HomeScreen(
             }
             TopNav(NavSection.Home, onNavigate, Modifier.align(Alignment.Center), state = navBar)
         }
-        Box(Modifier.padding(start = 48.dp, end = 48.dp, top = 30.dp).height(214.dp)) {
-            val last = recent.firstOrNull()
-            when {
-                hero != null -> ResumeHero(hero, firstFocus, onResume)
-                last != null -> ChannelHero(last, onAir[last.id], now, firstFocus) { onWatch(last, ChannelRepository.ALL) }
-                else -> WelcomeHero()
+        // Focus moving down scrolls the rows into view; the clock and nav stay put.
+        Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())) {
+            Box(Modifier.padding(start = 48.dp, end = 48.dp, top = 30.dp).height(214.dp)) {
+                val last = recent.firstOrNull()
+                when {
+                    liveMatch != null -> MatchHero(liveMatch, firstFocus) { vm.openMatch(liveMatch) }
+                    hero != null -> ResumeHero(hero, firstFocus, onResume)
+                    last != null -> ChannelHero(last, onAir[last.id], now, firstFocus) { onWatch(last, ChannelRepository.ALL) }
+                    else -> WelcomeHero()
+                }
             }
+            val rowPad = Modifier.padding(top = 22.dp)
+            if (matches.isNotEmpty()) {
+                Shelf(stringResource(R.string.home_your_matches), rowPad) {
+                    items(matches, key = { it.id }) { m -> MatchCard(m) { vm.openMatch(m) } }
+                }
+            }
+            if (footballNow.isNotEmpty()) {
+                Shelf(stringResource(R.string.home_football_now), rowPad) {
+                    items(footballNow.take(SHELF_MAX), key = { it.id }) { channel ->
+                        ChannelTile(channel, onAir[channel.id], now, onClick = { onWatch(channel, ChannelRepository.FOOTBALL) })
+                    }
+                }
+            }
+            if (picks.isNotEmpty()) {
+                Shelf(stringResource(R.string.home_for_you), rowPad) {
+                    items(picks, key = { it.channel.id + it.pick.start }) { p -> PickCard(p, now) { onWatch(p.channel, ChannelRepository.ALL) } }
+                }
+            }
+            homeList?.takeIf { it.channels.isNotEmpty() }?.let { list ->
+                MyChannels(list, onAir, now, onWatch, Modifier.padding(start = 48.dp, end = 48.dp, top = 22.dp))
+            }
+            RecentRow(
+                recent.take(RECENT_CHIPS),
+                onWatch = { onWatch(it, ChannelRepository.ALL) },
+                onAllChannels = onAllChannels,
+                modifier = Modifier.padding(start = 48.dp, end = 48.dp, top = 24.dp, bottom = 24.dp),
+                focusFirst = if (liveMatch == null && hero == null && recent.isEmpty()) firstFocus else null,
+            )
         }
-        homeList?.takeIf { it.channels.isNotEmpty() }?.let { list ->
-            MyChannels(list, onAir, now, onWatch, Modifier.padding(start = 48.dp, end = 48.dp, top = 22.dp))
-        }
-        Spacer(Modifier.weight(1f))
-        RecentRow(
-            recent.take(RECENT_CHIPS),
-            onWatch = { onWatch(it, ChannelRepository.ALL) },
-            onAllChannels = onAllChannels,
-            modifier = Modifier.padding(start = 48.dp, end = 48.dp, bottom = 20.dp),
-            focusFirst = if (hero == null && recent.isEmpty()) firstFocus else null,
-        )
     }
 
     NavBackHandler(navBar, onExit = onExit)
@@ -344,4 +377,116 @@ private fun RecentChip(channel: ChannelRow, onClick: () -> Unit) {
     }
 }
 
+/** A titled, sideways-scrolling row. */
+@Composable
+private fun Shelf(title: String, modifier: Modifier, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 48.dp))
+        LazyRow(
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 48.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            content = content,
+        )
+    }
+}
+
+/** One of your teams is playing right now: the score, one press from the match. */
+@Composable
+private fun MatchHero(match: HubMatch, focus: FocusRequester, onWatch: () -> Unit) {
+    Column(Modifier.width(560.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            LivePill()
+            Eyebrow(listOf(match.competition, match.detail).filter { it.isNotBlank() }.joinToString("  ·  "))
+        }
+        Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+            Text(match.home, fontSize = 38.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            Text(match.score ?: "v", fontSize = 46.sp, fontWeight = FontWeight.Bold, color = HindsColors.Accent)
+            Text(match.away, fontSize = 38.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        }
+        PillButton(stringResource(R.string.home_watch_match), onClick = onWatch, modifier = Modifier.padding(top = 20.dp).focusRequester(focus))
+    }
+}
+
+@Composable
+private fun LivePill() {
+    Box(Modifier.background(Color(0xFFE5484D), HindsShapes.Pill).padding(horizontal = 8.dp, vertical = 2.dp)) {
+        Text(stringResource(R.string.home_live), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp, color = Color.White)
+    }
+}
+
+/** A fixture: live score and minute, or the day and kick-off time. */
+@Composable
+private fun MatchCard(match: HubMatch, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val live = match.state == "in"
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.size(250.dp, 96.dp).onFocusChanged { focused = it.isFocused },
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+        colors = focusColors(focused, container = HindsColors.Surface, content = HindsColors.Text),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.04f),
+    ) {
+        val sub = if (focused) HindsColors.OnFocus.copy(alpha = 0.7f) else HindsColors.Muted
+        Column(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (live) LivePill()
+                Text(
+                    if (live) match.detail else formatDay(match.kickoff) + "  " + formatTime(match.kickoff),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (live) HindsColors.Accent else sub,
+                    maxLines = 1,
+                )
+            }
+            TeamLine(match.home, match.homeScore.takeIf { match.score != null })
+            TeamLine(match.away, match.awayScore.takeIf { match.score != null })
+            Text(match.competition, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = sub, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun TeamLine(team: String, score: String?) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(team, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        if (score != null) Text(score, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+/** A recommendation: what's on (with progress) or coming up, and on which channel. */
+@Composable
+private fun PickCard(p: HomePick, now: Long, onClick: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val on = p.pick.start <= now
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.size(250.dp, 96.dp).onFocusChanged { focused = it.isFocused },
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+        colors = focusColors(focused, container = HindsColors.Surface, content = HindsColors.Text),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.04f),
+    ) {
+        val sub = if (focused) HindsColors.OnFocus.copy(alpha = 0.7f) else HindsColors.Muted
+        Column(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.SpaceBetween) {
+            Text(
+                listOfNotNull(
+                    if (on) stringResource(R.string.home_on_now) else stringResource(R.string.home_at, formatTime(p.pick.start)),
+                    stringResource(R.string.home_you_watch).takeIf { p.pick.liked },
+                ).joinToString("  ·  "),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (p.pick.liked && !focused) HindsColors.Accent else sub,
+                maxLines = 1,
+            )
+            Text(p.pick.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("${p.channel.number}  ${p.channel.name}", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = sub, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                if (on && p.pick.stop > p.pick.start) {
+                    ProgressLine((now - p.pick.start).toFloat() / (p.pick.stop - p.pick.start), Modifier.width(60.dp))
+                }
+            }
+        }
+    }
+}
+
 private const val RECENT_CHIPS = 4
+private const val SHELF_MAX = 15

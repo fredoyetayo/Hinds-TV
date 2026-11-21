@@ -368,6 +368,13 @@ abstract class EpgDao {
     @Query("SELECT * FROM programmes WHERE start <= :now AND stop > :now")
     abstract suspend fun airingAt(now: Long): List<ProgrammeEntity>
 
+    /** Programmes whose title contains [query], on between [from] and [to] (Home recommendations). */
+    @Query(
+        "SELECT * FROM programmes WHERE title LIKE '%' || :query || '%' AND stop > :from AND start < :to " +
+            "ORDER BY start LIMIT :limit",
+    )
+    abstract suspend fun titledBetween(query: String, from: Long, to: Long, limit: Int): List<ProgrammeEntity>
+
     /** Programme search: on now or later, soonest first. */
     @Query(
         "SELECT * FROM programmes WHERE stop > :now AND title LIKE '%' || :query || '%' " +

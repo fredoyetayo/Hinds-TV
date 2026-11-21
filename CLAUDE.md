@@ -72,8 +72,8 @@ app/src/main/java/com/hindstv/
                                recent channels (20, `Recents.kt`), last sync, recent searches, theme, start with
   player/PlayerEngine.kt       the one ExoPlayer: tuned LoadControl, OkHttp data source, TS flags, FFmpeg ext;
                                live pause/rewind (`canTimeshift`, `behindLiveMs`, `seekLive`, `goLive`)
-  player/HlsDvr.kt             live HLS rewind: playlists via HlsWindow (keeps ~20 min of segments, tested),
-                               segments via a SimpleCache (LRU 1.2 GB, fresh folder per run), prefetch while paused
+  player/HlsDvr.kt             live HLS rewind: playlists via HlsWindow (keeps ~10 min of segments, tested),
+                               segments via a SimpleCache (LRU 600 MB, fresh folder per run), prefetch while paused
   player/TimeshiftBuffer.kt    live TS rewind: TimeshiftSession records the stream to segment files (tested);
                                the player reads them through TimeshiftDataSource (`timeshift://<session>/<offset>`)
   live/                        pure, tested: FeedMatcher (other feeds of a channel), FootballMatcher (guide titles,
@@ -92,7 +92,7 @@ app/src/main/java/com/hindstv/
   ui/RemoteKeys.kt             keycode → RemoteAction mapping
   ui/tv/                       TvScreen (video, info banner, toasts), ChannelListOverlay, GuideOverlay
   ui/videos/                   VideosScreen (library rows), DetailsPage, VideoPlayerPage
-  ui/home/HomeScreen.kt        Home (opt-in start): resume hero, first favourites list, recently watched; NextUp.kt (tested)
+  ui/home/HomeScreen.kt        Home (opt-in start): live-match/resume hero, Your matches, Football on now, For you, first favourites list, recently watched; NextUp.kt (tested)
   ui/radio/RadioScreen.kt      now playing + station grid
   ui/search/SearchScreen.kt    one box, results in rows, recent searches
   ui/tv/FavoriteDialogs.kt     "Add to list" picker (tick lists, make a new one) and rename/delete
@@ -109,6 +109,8 @@ app/src/main/java/com/hindstv/
 hinds_hub/                     Home Assistant add-on (Python, stdlib + ffmpeg): ESPN fixtures → sensor.hinds_football,
                                hinds_match_soon / hinds_kickoff events, sensor.hinds_now_playing, recorder to
                                /media/hinds (now or scheduled; minimal Stalker client for scheduled ones), port 8642.
+                               Each recording's metadata says why it ended (`ended`: finished / stopped: by <ip, UA> /
+                               gave up); GET /log returns the last 300 log lines (HA's add-on logs need the Supervisor).
                                repository.yaml at the repo root makes this repo an add-on repository.
 ffmpeg-audio/                  Media3 FFmpeg *audio* decoder (MP2/AC3/E-AC3/DTS/TrueHD), prebuilt LGPL .so
 tools/fake-portal/             fake Stalker portal + test streams for development without a subscription
@@ -124,7 +126,13 @@ tools/fake-portal/             fake Stalker portal + test streams for developmen
 - **Home** (first nav pill; start screen only if Settings → Appearance → Start with = Home, otherwise launch
   still plays the last channel). Nothing plays on Home: when it is the start screen the last channel is
   only remembered (`resumeOnForeground`) and Live picks it up. Hero = newest Continue watching item (Resume /
-  Play from start), else the last channel. Wallpaper: two per theme (`ui/theme/Wallpapers.kt`, 1920×1080 WebP in
+  Play from start), else the last channel; a live match of a followed team (from the hub) takes the hero
+  with its score. Below it, scrolling: **Your matches** (hub fixtures, live score and minute, or day and
+  kick-off; select = watch if live or within 30 min, else a toast), **Football on now** (the Football group),
+  **For you** (`live/Taste.kt`: minutes watched per programme title, counted on the minute tick while live TV
+  plays, saved in the profile as `taste`; `Recommender` puts liked titles on now, then liked titles in the
+  next 6 h, then what's on now on recent/favourite channels), the first favourites list and Recently watched.
+  Fixtures poll every 10 min, every 30 s while a match is on or within 15 min of kick-off. Wallpaper: two per theme (`ui/theme/Wallpapers.kt`, 1920×1080 WebP in
   `drawable-nodpi`, about 150–250 KB each), chosen in Appearance, under three Background scrims.
 - **Full screen.**
   - ▲/▼ and CH± zap within the current group.
@@ -148,6 +156,7 @@ tools/fake-portal/             fake Stalker portal + test streams for developmen
 - **Backup feeds.** A failure after the one automatic retry, or 12 s of buffering, moves to the channel's next
   untried feed (`FeedMatcher`: same name without country/quality/backup labels, same group first) with a toast;
   zapping or picking a channel starts afresh. Settings → Playback can turn it off.
+  Never while the hub is recording: a backup feed would take the account's one stream from the recorder.
 - **Reminders.** ☰ on a future programme in the guide toggles a reminder (⏰ in the grid); otherwise ☰ adds the
   channel to a list. Checked on the minute tick: `ReminderDialog` (Watch now / Dismiss) a minute before.
 - **Favourites lists.** Any number of named lists; a channel can be in several. Group ids `__list:<id>`.

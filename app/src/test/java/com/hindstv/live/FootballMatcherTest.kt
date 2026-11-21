@@ -57,6 +57,7 @@ class FixtureNameTest {
         assertTrue(FootballMatcher.isFixtureName(name, minuteOfDay = 19 * 60 + 50))
         assertFalse(FootballMatcher.isFixtureName(name, minuteOfDay = 20 * 60 + 5))
         assertTrue(FootballMatcher.isFixtureName("EPL: Spurs v Leeds 23:45", minuteOfDay = 30)) // past midnight
-        assertTrue(FootballMatcher.isFixtureName("EPL: Spurs v Leeds", minuteOfDay = 9 * 60)) // no time: can't tell
+        assertFalse(FootballMatcher.isFixtureName("EPL: Spurs v Leeds", minuteOfDay = 9 * 60)) // no time: can't tell
+        assertTrue(FootballMatcher.isFixtureName("EPL: Spurs v Leeds")) // naming a match is still a match (Watch now)
     }
 }
