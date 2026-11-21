@@ -33,6 +33,11 @@ Then install the app, either way:
 
 Hinds TV appears under **Apps** (Recent / My Library).
 
+**Updates** after that are built in: when a new version is out, Hinds TV offers it when it opens. Press
+**Update now**, then **Install** on the Fire TV screen. The first time, Fire TV asks you to allow Hinds TV under
+**Install unknown apps**. Settings → About → **Check for updates** checks straight away. From a computer,
+`scripts/deploy-tv.sh` installs the latest release over adb with no presses on the TV.
+
 ## Try it on a computer
 
 You can run the app on Windows or a Mac in Android Studio's TV emulator:

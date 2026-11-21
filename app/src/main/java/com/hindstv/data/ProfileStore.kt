@@ -104,6 +104,11 @@ class ProfileStore(context: Context) {
         get() = prefs.getString(KEY_LAST_GENRE, null)?.let { if (it == LEGACY_FAVORITES) "__list:1" else it }
         set(value) = prefs.edit { putString(KEY_LAST_GENRE, value) }
 
+    /** Provider groups the user pinned to the top of the group list (☰ on a group), by group id. */
+    var pinnedGroupIds: Set<String>
+        get() = prefs.getStringSet(KEY_PINNED_GROUPS, null)?.toSet().orEmpty()
+        set(value) = prefs.edit { putStringSet(KEY_PINNED_GROUPS, value) }
+
     /** ▲ goes to the previous channel instead of the next (list order). */
     var invertUpDown: Boolean
         get() = prefs.getBoolean(KEY_INVERT, false)
@@ -149,6 +154,7 @@ class ProfileStore(context: Context) {
         const val KEY_GUIDE_GROUP = "guide_group"
         const val KEY_INVERT = "invert_up_down"
         const val KEY_THEME_MODE = "theme_mode"
+        const val KEY_PINNED_GROUPS = "pinned_groups"
         const val KEY_RECENT_CHANNELS = "recent_channels"
         const val KEY_START_WITH = "start_with"
         const val KEY_WALL_DARK = "wallpaper_dark"

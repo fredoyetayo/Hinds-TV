@@ -65,9 +65,11 @@ data class GenreItem(
     val kind: GroupKind = GroupKind.Provider,
     /** Shown beside favourites lists and All channels; null for the provider's groups. */
     val count: Int? = null,
+    /** A provider group the user pinned to the top (☰ on the group). */
+    val pinned: Boolean = false,
 ) {
-    /** With the ★ for favourites lists, where the group is named on its own (the guide header). */
-    val displayTitle: String get() = if (listId != null) "★  $title" else title
+    /** With the ★ for favourites lists and pinned groups, where the group is named on its own (the guide header). */
+    val displayTitle: String get() = if (listId != null || pinned) "★  $title" else title
 }
 
 enum class GroupKind { Recent, List, All, Provider }
@@ -148,11 +150,20 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     // --- Browsing --------------------------------------------------------------------------------
 
-    val genres: StateFlow<List<GenreItem>> = combine(repo.listSummaries(), repo.genres(), repo.channelCountFlow()) { lists, genres, all ->
+    private val pinnedGroups = MutableStateFlow(store.pinnedGroupIds)
+
+    val genres: StateFlow<List<GenreItem>> = combine(
+        repo.listSummaries(),
+        repo.genres(),
+        repo.channelCountFlow(),
+        pinnedGroups,
+    ) { lists, genres, all, pinned ->
+        val (top, rest) = GroupOrder.pinFirst(genres, pinned) { it.id }
         listOf(GenreItem(ChannelRepository.RECENT, app.getString(R.string.group_recent), kind = GroupKind.Recent)) +
             lists.map { GenreItem(ChannelRepository.listGroupId(it.id), it.name, it.id, GroupKind.List, it.count) } +
+            top.map { GenreItem(it.id, it.title, pinned = true) } +
             GenreItem(ChannelRepository.ALL, app.getString(R.string.genre_all), kind = GroupKind.All, count = all) +
-            genres.map { GenreItem(it.id, it.title) }
+            rest.map { GenreItem(it.id, it.title) }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _listPicker = MutableStateFlow<ListPickerUi?>(null)
@@ -354,6 +365,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
             _overlay.value = Overlay.ChannelList
         }
         delay(5_000) // let the first channel start before loading the portal again
+        container.updater.checkInBackground()
         if (System.currentTimeMillis() - store.lastSyncAt > SYNC_MAX_AGE_MS) {
             syncChannels() // also refreshes the guide
         } else if (System.currentTimeMillis() - store.lastEpgSyncAt > EPG_MAX_AGE_MS) {
@@ -365,6 +377,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     fun onForeground() {
         if (_screen.value == Screen.Setup) return
+        container.updater.checkOnResume() // no-op within a few hours of the last check
         startWatchdog() // the portal session must stay alive while browsing videos or radio too
         if (_screen.value != Screen.Tv) return
         val channel = _playback.value.channel
@@ -573,6 +586,15 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     fun closeListEdit() {
         _listEdit.value = null
+    }
+
+    /** ☰ on a provider group: pin it above All channels, or unpin it. */
+    fun togglePinGroup(groupId: String) {
+        val pinned = groupId !in pinnedGroups.value
+        val updated = if (pinned) pinnedGroups.value + groupId else pinnedGroups.value - groupId
+        store.pinnedGroupIds = updated
+        pinnedGroups.value = updated
+        showToast(if (pinned) R.string.group_pinned else R.string.group_unpinned)
     }
 
     private fun refreshFavoriteMark(channelId: String, favourite: Boolean) {

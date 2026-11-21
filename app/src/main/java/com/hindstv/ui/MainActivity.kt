@@ -10,7 +10,9 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.hindstv.update.release
 import com.hindstv.HindsApp
 import com.hindstv.ui.components.NavSection
 import com.hindstv.ui.home.HomeScreen
@@ -160,6 +162,12 @@ private fun HindsRoot(
     val listEdit by vm.listEdit.collectAsStateWithLifecycle()
     listPicker?.let { ListPickerDialog(it, vm::toggleInList, vm::createListWith, vm::closeListPicker) }
     listEdit?.let { ListEditDialog(it, vm::renameList, vm::deleteList, vm::closeListEdit) }
+    val updater = (LocalContext.current.applicationContext as HindsApp).container.updater
+    val update by updater.state.collectAsStateWithLifecycle()
+    val dismissedUpdate by updater.dismissed.collectAsStateWithLifecycle()
+    if (screen != Screen.Setup && update.showsPrompt(dismissedUpdate)) {
+        UpdateDialog(update, onUpdate = { update.release?.let(updater::install) }, onLater = updater::later)
+    }
     val tracks by trackPicker.choices.collectAsStateWithLifecycle()
     tracks?.let { TrackPickerDialog(it, trackPicker::selectAudio, trackPicker::selectSubtitles, trackPicker::close) }
 

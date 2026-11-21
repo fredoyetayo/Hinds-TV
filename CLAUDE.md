@@ -125,9 +125,10 @@ tools/fake-portal/             fake Stalker portal + test streams for developmen
   - Back twice exits.
 - **Overlay.** Section pills on top (Home · Live · Guide · VOD · Radio · Search · Settings). Groups on the left:
   Recently watched (`__recent`, kept in `ChannelRepository`; playing from it zaps through All), the user's
-  favourites lists (★), then All, then the provider's groups (focus previews a group,
-  debounced); channels on the right with what's on now. Select plays, ☰ opens "Add to list" (☰ on a list
-  renames/deletes it), ⏪⏩ jump 10 channels, Back closes. Footer: Refresh channels.
+  favourites lists (★), pinned provider groups (★), then All, then the rest of the provider's groups (focus
+  previews a group, debounced); channels on the right with what's on now. Select plays, ☰ opens "Add to list"
+  (☰ on a list renames/deletes it; ☰ on a provider group pins/unpins it: `pinned_groups` in `ProfileStore`,
+  ordered by `GroupOrder`, tested), ⏪⏩ jump 10 channels, Back closes. Footer: Refresh channels.
 - **Favourites lists.** Any number of named lists; a channel can be in several. Group ids `__list:<id>`.
   Dialogs are `Dialog` windows, so focus stays inside them and Back closes them.
 - **Search.** Opens with the keyboard up; 300 ms debounce; local results first, the portal's VOD search
@@ -158,6 +159,11 @@ tools/fake-portal/             fake Stalker portal + test streams for developmen
 - **Speed.** The portal token is kept between launches (no handshake before the first channel; an expired
   one is renewed once). Playback starts after 500 ms of media. `baseline-prof.txt` pre-compiles app code.
   The info banner shows "Tuned in x.x s" (logcat `HindsPerf` also logs start-to-first-frame).
+- **Self-update** (`update/`). `Updater` checks GitHub's `releases/latest` 5 s after launch and on return to
+  the app (at most every 6 h); a newer `versionCode` (the tag's last number, `ReleaseInfo`, tested) shows
+  `UpdateDialog`. Update now streams `hinds-tv.apk` into a `PackageInstaller` session; `InstallResultReceiver`
+  opens Fire OS's Install screen (one press; only adb can skip it). First time, Fire OS asks to allow Hinds TV
+  under Install unknown apps. Later hides it until a newer build; Settings → About has Check for updates.
 - **Background (`onStop`).** Playback stops (videos save their position first), which frees the decoder and
   the provider connection (Amazon requirement). Live TV resumes on `onStart`.
 
@@ -213,8 +219,10 @@ too; videos are seekable (`vod.mp4` with Range support).
 
 - **CI** (`.github/workflows/build.yml`) runs on every push: unit tests, lint, release APK.
   - On `main` it also publishes a GitHub Release with `hinds-tv.apk` (`versionCode` = run number).
+- **On the TV:** the app updates itself from the latest release (Update now → Install).
 - **Install over adb** from a computer on the same network (the cloud container can't reach the TV):
-  `adb connect <tv-ip>:5555 && adb install -r hinds-tv.apk`.
+  `scripts/deploy-tv.sh` (latest release) or `scripts/deploy-tv.sh path/to.apk`; the TV's IP is in `$HINDS_TV`
+  or a git-ignored `.tv` file.
 - **Install with the Downloader app** using
   `https://github.com/fredoyetayo/Hinds-TV/releases/latest/download/hinds-tv.apk`. This only works if the
   repo (or a release mirror) is public; private-repo assets need auth.
@@ -288,7 +296,7 @@ too; videos are seekable (`vod.mp4` with Range support).
   - Series model (b) (`type=series` categories on newer portals); video search; favourite videos.
   - `tv_archive`.
   - Radio groups and favourites.
-- [ ] **Phase 6 — Self-update** from GitHub Releases (`REQUEST_INSTALL_PACKAGES` + PackageInstaller).
+- [x] **Phase 6 — Self-update** from GitHub Releases (`REQUEST_INSTALL_PACKAGES` + PackageInstaller).
 
 **Known gaps and TODOs:**
 - `do_auth` (login/password portals) isn't implemented; `get_profile` status 2 shows a message.

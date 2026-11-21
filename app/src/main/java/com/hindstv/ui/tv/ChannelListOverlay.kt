@@ -94,6 +94,7 @@ fun ChannelListOverlay(vm: AppViewModel, onNavigate: (NavSection) -> Unit) {
                         onFocused = vm::onGenreFocused,
                         onSelected = vm::selectGenre,
                         onEditList = vm::editList,
+                        onTogglePin = vm::togglePinGroup,
                         onRefresh = vm::refreshChannels,
                     )
                     val list = genreChannels?.takeIf { it.genreId == selectedGenre }
@@ -137,8 +138,18 @@ private fun GenreColumn(
     onFocused: (String) -> Unit,
     onSelected: (String) -> Unit,
     onEditList: (Long) -> Unit,
+    onTogglePin: (String) -> Unit,
     onRefresh: () -> Unit,
 ) {
+    val listState = rememberLazyListState()
+    // A group that was just pinned or unpinned moves; keep it (and its focus) on screen.
+    var movedGroup by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(genres) {
+        val id = movedGroup ?: return@LaunchedEffect
+        movedGroup = null
+        val position = lazyIndexOf(genres, id)
+        if (position >= 0) listState.scrollToItem((position - 3).coerceAtLeast(0))
+    }
     Column(Modifier.padding(start = 28.dp).width(260.dp).fillMaxHeight()) {
         Text(
             stringResource(R.string.groups).uppercase(),
@@ -154,6 +165,7 @@ private fun GenreColumn(
             SyncUi.Idle -> Unit
         }
         LazyColumn(
+            state = listState,
             modifier = Modifier.weight(1f).focusRestorer().focusGroup(),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
@@ -172,13 +184,19 @@ private fun GenreColumn(
                         modifier = Modifier
                             .onFocusChanged { if (it.isFocused) onFocused(genre.id) }
                             .onKeyEvent {
-                                val listId = genre.listId
-                                if (listId != null && it.type == KeyEventType.KeyDown && it.nativeKeyEvent.keyCode == KeyEvent.KEYCODE_MENU) {
-                                    onEditList(listId)
-                                    true
-                                } else {
-                                    false
+                                if (it.type != KeyEventType.KeyDown || it.nativeKeyEvent.keyCode != KeyEvent.KEYCODE_MENU) {
+                                    return@onKeyEvent false
                                 }
+                                val listId = genre.listId
+                                when {
+                                    listId != null -> onEditList(listId)
+                                    genre.kind == GroupKind.Provider -> {
+                                        movedGroup = genre.id
+                                        onTogglePin(genre.id)
+                                    }
+                                    else -> return@onKeyEvent false
+                                }
+                                true
                             },
                     )
                 }
@@ -186,6 +204,14 @@ private fun GenreColumn(
         }
         RefreshRow(onRefresh)
     }
+}
+
+/** The group's position in the lazy list, counting the divider item above All channels. */
+private fun lazyIndexOf(genres: List<GenreItem>, id: String): Int {
+    val index = genres.indexOfFirst { it.id == id }
+    if (index < 0) return -1
+    val all = genres.indexOfFirst { it.kind == GroupKind.All }
+    return if (all in 1..index) index + 1 else index
 }
 
 @Composable
@@ -210,7 +236,7 @@ private fun GroupRow(genre: GenreItem, selected: Boolean, onClick: () -> Unit, m
             when (genre.kind) {
                 GroupKind.Recent -> Text("↺", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 GroupKind.List -> Text("★", fontSize = 13.sp, color = if (focused) HindsColors.OnFocus else HindsColors.Accent)
-                else -> Unit
+                else -> if (genre.pinned) Text("★", fontSize = 13.sp, color = if (focused) HindsColors.OnFocus else HindsColors.Accent)
             }
             Text(
                 genre.title,
@@ -220,6 +246,16 @@ private fun GroupRow(genre: GenreItem, selected: Boolean, onClick: () -> Unit, m
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+            // Provider groups have no count; the focused one says what ☰ does instead.
+            if (focused && genre.kind == GroupKind.Provider) {
+                Text(
+                    stringResource(if (genre.pinned) R.string.hint_group_unpin else R.string.hint_group_pin),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = HindsColors.OnFocus.copy(alpha = 0.7f),
+                    maxLines = 1,
+                )
+            }
             genre.count?.let {
                 Text(
                     "%,d".format(it),

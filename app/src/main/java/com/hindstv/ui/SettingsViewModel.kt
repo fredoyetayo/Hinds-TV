@@ -55,6 +55,15 @@ class SettingsViewModel(app: HindsApp) : ViewModel() {
 
     val themeMode: StateFlow<ThemeMode> = container.themeMode.asStateFlow()
 
+    val update: StateFlow<com.hindstv.update.UpdateUi> = container.updater.state
+
+    fun checkForUpdate() = container.updater.check()
+
+    fun installUpdate() {
+        container.updater.state.value.let { it as? com.hindstv.update.UpdateUi.Available }?.let { container.updater.install(it.release) }
+            ?: container.updater.check()
+    }
+
     private val _startWithHome = MutableStateFlow(store.startWithHome)
     val startWithHome: StateFlow<Boolean> = _startWithHome.asStateFlow()
 

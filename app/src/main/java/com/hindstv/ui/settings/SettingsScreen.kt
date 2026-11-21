@@ -53,6 +53,8 @@ import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.hindstv.BuildConfig
 import com.hindstv.R
+import com.hindstv.update.FailReason
+import com.hindstv.update.UpdateUi
 import com.hindstv.core.Diagnostics
 import com.hindstv.ui.AccountUi
 import com.hindstv.ui.SettingsSection
@@ -132,7 +134,7 @@ fun SettingsScreen(
                     SettingsSection.Playback -> PlaybackPane(vm)
                     SettingsSection.History -> HistoryPane(vm)
                     SettingsSection.Diagnostics -> DiagnosticsPane(vm)
-                    SettingsSection.About -> AboutPane()
+                    SettingsSection.About -> AboutPane(vm)
                 }
             }
         }
@@ -479,13 +481,26 @@ private fun DiagnosticRow(entry: Diagnostics.Entry, time: String) {
 }
 
 @Composable
-private fun AboutPane() {
+private fun AboutPane(vm: SettingsViewModel) {
+    val update by vm.update.collectAsStateWithLifecycle()
     PaneTitle(stringResource(R.string.app_name))
     Field(stringResource(R.string.settings_version), BuildConfig.VERSION_NAME)
     Hint(stringResource(R.string.settings_about_text))
     Hint(stringResource(R.string.settings_licences))
-    // Something focusable, so the rail isn't the only place focus can be.
-    PillButton(stringResource(R.string.settings_ok), onClick = {})
+    val status = when (val u = update) {
+        UpdateUi.Checking -> stringResource(R.string.update_checking)
+        UpdateUi.UpToDate -> stringResource(R.string.update_up_to_date)
+        is UpdateUi.Available -> stringResource(R.string.update_version, u.release.versionName)
+        is UpdateUi.Downloading -> stringResource(R.string.update_downloading)
+        is UpdateUi.Failed -> if (u.reason == FailReason.Check) stringResource(R.string.update_failed_check) else null
+        else -> null
+    }
+    status?.let { Hint(it, color = HindsColors.Accent) }
+    if (update is UpdateUi.Available) {
+        PillButton(stringResource(R.string.update_now), onClick = vm::installUpdate, primary = true)
+    } else {
+        PillButton(stringResource(R.string.update_check), onClick = vm::checkForUpdate, primary = true)
+    }
 }
 
 private fun formatDateTime(ms: Long): String =
