@@ -11,6 +11,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import com.hindstv.HindsApp
 import com.hindstv.R
+import com.hindstv.core.Diagnostics
 import com.hindstv.data.ChannelRepository
 import com.hindstv.data.db.ChannelRow
 import com.hindstv.data.db.ProgrammeEntity
@@ -18,6 +19,7 @@ import com.hindstv.data.source.SourceProfile
 import com.hindstv.data.stalker.Mac
 import com.hindstv.data.stalker.PortalProfile
 import com.hindstv.data.stalker.StalkerClient
+import com.hindstv.live.Reminder
 import com.hindstv.player.ZapController
 import kotlinx.coroutines.CancellationException
 import java.util.Calendar
@@ -72,7 +74,16 @@ data class GenreItem(
     val displayTitle: String get() = if (listId != null || pinned) "★  $title" else title
 }
 
-enum class GroupKind { Recent, List, All, Provider }
+enum class GroupKind { Football, Recent, List, All, Provider }
+
+/** ☰ on a provider group: pin it to the top or hide it. */
+data class GroupMenuUi(val groupId: String, val title: String, val pinned: Boolean)
+
+/** Live pause/rewind state for the banner: how far behind live, and whether it is paused. */
+data class TimeshiftUi(val behindMs: Long, val paused: Boolean, val pendingSkipMs: Long = 0)
+
+/** A reminder that is due: the programme and its channel. */
+data class DueReminder(val reminder: Reminder, val channel: ChannelRow)
 
 /** "Add to list" for one channel: which of the user's lists it is in. */
 data class ListPickerUi(
@@ -150,16 +161,22 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     // --- Browsing --------------------------------------------------------------------------------
 
-    private val pinnedGroups = MutableStateFlow(store.pinnedGroupIds)
+    private val pinnedGroups = container.pinnedGroups
+    private val hiddenGroups = container.hiddenGroups
 
     val genres: StateFlow<List<GenreItem>> = combine(
         repo.listSummaries(),
         repo.genres(),
         repo.channelCountFlow(),
-        pinnedGroups,
-    ) { lists, genres, all, pinned ->
+        combine(pinnedGroups, hiddenGroups) { pinned, hidden -> pinned to hidden },
+        repo.footballCount(),
+    ) { lists, allGenres, all, (pinned, hidden), football ->
+        val genres = allGenres.filter { it.id !in hidden }
         val (top, rest) = GroupOrder.pinFirst(genres, pinned) { it.id }
-        listOf(GenreItem(ChannelRepository.RECENT, app.getString(R.string.group_recent), kind = GroupKind.Recent)) +
+        listOf(
+            GenreItem(ChannelRepository.FOOTBALL, app.getString(R.string.group_football), kind = GroupKind.Football, count = football),
+            GenreItem(ChannelRepository.RECENT, app.getString(R.string.group_recent), kind = GroupKind.Recent),
+        ) +
             lists.map { GenreItem(ChannelRepository.listGroupId(it.id), it.name, it.id, GroupKind.List, it.count) } +
             top.map { GenreItem(it.id, it.title, pinned = true) } +
             GenreItem(ChannelRepository.ALL, app.getString(R.string.genre_all), kind = GroupKind.All, count = all) +
@@ -171,6 +188,9 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     private val _listEdit = MutableStateFlow<ListEditUi?>(null)
     val listEdit: StateFlow<ListEditUi?> = _listEdit.asStateFlow()
+
+    private val _groupMenu = MutableStateFlow<GroupMenuUi?>(null)
+    val groupMenu: StateFlow<GroupMenuUi?> = _groupMenu.asStateFlow()
 
     private val _selectedGenre = MutableStateFlow(store.lastGenreId ?: ChannelRepository.ALL)
     val selectedGenre: StateFlow<String> = _selectedGenre.asStateFlow()
@@ -214,6 +234,20 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     private val _overlay = MutableStateFlow(Overlay.ChannelList)
     val overlay: StateFlow<Overlay> = _overlay.asStateFlow()
+
+    private val _timeshift = MutableStateFlow<TimeshiftUi?>(null)
+
+    /** Set while live TV can pause/rewind; null when it can't (HLS, setting off, no space). */
+    val timeshift: StateFlow<TimeshiftUi?> = _timeshift.asStateFlow()
+
+    private val _reminders = MutableStateFlow(Reminder.decode(store.reminders))
+
+    /** Programmes with a reminder, by `Reminder.key`. */
+    val reminderKeys: StateFlow<Set<String>> = _reminders.map { list -> list.mapTo(HashSet()) { it.key } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    private val _dueReminder = MutableStateFlow<DueReminder?>(null)
+    val dueReminder: StateFlow<DueReminder?> = _dueReminder.asStateFlow()
 
     private val _toast = MutableStateFlow<String?>(null)
     val toast: StateFlow<String?> = _toast.asStateFlow()
@@ -284,17 +318,29 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
     private var toastJob: Job? = null
     private var watchdogJob: Job? = null
     private var retryJob: Job? = null
+    private var stallJob: Job? = null
+    private var timeshiftJob: Job? = null
+    private var skipJob: Job? = null
+    private var pendingSkipMs = 0L
+
+    /** Backup feeds: the channel the user chose, and the feeds already tried for it. */
+    private var failoverOrigin: ChannelRow? = null
+    private val failoverTried = mutableSetOf<String>()
 
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (engine.owner !== this@AppViewModel || _playback.value.channel == null) return
             when (playbackState) {
-                Player.STATE_BUFFERING -> setStatus(PlayStatus.Buffering)
+                Player.STATE_BUFFERING -> {
+                    setStatus(PlayStatus.Buffering)
+                    watchForStall()
+                }
                 Player.STATE_READY -> {
                     autoRetries = 0
+                    stallJob?.cancel()
                     setStatus(PlayStatus.Playing)
                 }
-                else -> Unit
+                else -> stallJob?.cancel()
             }
         }
 
@@ -324,9 +370,13 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
                     delay(1_000)
                     if (_playback.value.channel?.id == channel.id) tune(channel, isRetry = true)
                 }
-            } else {
+            } else if (!tryBackupFeed(channel)) {
                 _playback.update { it.copy(status = PlayStatus.Error, error = Errors.describe(error)) }
             }
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            if (engine.owner === this@AppViewModel) updateTimeshift()
         }
     }
 
@@ -340,6 +390,13 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
                 val ids = list.mapTo(HashSet()) { it.id }
                 if (_selectedGenre.value !in ids) _selectedGenre.value = ChannelRepository.ALL
                 if (zapGenre.value !in ids) zapGenre.value = ChannelRepository.ALL
+            }
+        }
+        // Football on now and reminders follow the minute tick and guide updates.
+        viewModelScope.launch {
+            combine(minute, _epgRevision) { now, _ -> now }.collect { now ->
+                runCatching { repo.refreshFootball(now) }
+                checkReminders(now)
             }
         }
         if (store.profile != null) {
@@ -416,10 +473,10 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
             RemoteAction.ChannelDown -> zap(-1)
             RemoteAction.OpenList -> showChannelList()
             RemoteAction.OpenGuide -> openGuide()
-            RemoteAction.Tracks -> container.trackPicker.open()
+            RemoteAction.Tracks -> if (engine.canTimeshift && engine.behindLiveMs() > LIVE_EDGE_MS) skip(+SKIP_MS) else container.trackPicker.open()
             RemoteAction.ShowInfo -> showBanner()
             RemoteAction.OpenRecent -> openRecent()
-            RemoteAction.Recall -> recall()
+            RemoteAction.Recall -> if (engine.canTimeshift && engine.owner === this) skip(-SKIP_MS) else recall()
             RemoteAction.ToggleFavorite -> _playback.value.channel?.let { toggleFavorite(it.id) }
             RemoteAction.PlayPause -> togglePlayPause()
             RemoteAction.Back -> Unit // handled by onBackInFullscreen
@@ -489,6 +546,8 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         bannerJob?.cancel()
         bannerJob = viewModelScope.launch {
             delay(BANNER_MS)
+            // Paused live TV keeps the banner up, so it's clear why the picture is still.
+            while (_timeshift.value?.paused == true) delay(500)
             if (_overlay.value == Overlay.Banner) _overlay.value = Overlay.None
         }
     }
@@ -510,6 +569,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
     }
 
     fun play(channel: ChannelRow, fromGenre: String) {
+        resetFailover()
         // Recently watched reorders on every tune, so ▲/▼ would bounce between two channels: zap through All.
         val group = if (fromGenre == ChannelRepository.RECENT) ChannelRepository.ALL else fromGenre
         zapGenre.value = group
@@ -590,6 +650,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     /** ☰ on a provider group: pin it above All channels, or unpin it. */
     fun togglePinGroup(groupId: String) {
+        _groupMenu.value = null
         val pinned = groupId !in pinnedGroups.value
         val updated = if (pinned) pinnedGroups.value + groupId else pinnedGroups.value - groupId
         store.pinnedGroupIds = updated
@@ -638,8 +699,11 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
     private fun zap(delta: Int) {
         val list = zapList.value
         if (list.isEmpty()) return
+        // On a backup feed outside the group, zap from the channel the user chose.
         val currentId = _playback.value.channel?.id
-        val index = list.indexOfFirst { it.id == currentId }
+        val index = list.indexOfFirst { it.id == currentId }.takeIf { it >= 0 }
+            ?: list.indexOfFirst { it.id == failoverOrigin?.id }
+        resetFailover()
         val next = if (index < 0) list.first() else list[(index + delta).mod(list.size)]
         showChannel(next)
         zapper.request(next)
@@ -647,6 +711,9 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     private fun showChannel(channel: ChannelRow) {
         retryJob?.cancel()
+        stallJob?.cancel()
+        skipJob?.cancel()
+        pendingSkipMs = 0
         tuneStartedAt = SystemClock.uptimeMillis()
         _tuneMs.value = null
         val current = _playback.value.channel
@@ -662,12 +729,169 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
             val url = repo.streamUrl(channel.id)
             store.lastChannelId = channel.id
             repo.noteWatched(channel.id)
-            engine.play(url, owner = this)
+            engine.play(url, owner = this, timeshift = store.liveRewind)
+            updateTimeshift()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            _playback.update { it.copy(status = PlayStatus.Error, error = Errors.describe(e)) }
+            if (!tryBackupFeed(channel)) _playback.update { it.copy(status = PlayStatus.Error, error = Errors.describe(e)) }
         }
+    }
+
+    // --- Backup feeds ----------------------------------------------------------------------------
+
+    private fun resetFailover() {
+        failoverOrigin = null
+        failoverTried.clear()
+    }
+
+    /** Still buffering after [STALL_MS]: the feed has stalled, so treat it like a failure. */
+    private fun watchForStall() {
+        stallJob?.cancel()
+        val channel = _playback.value.channel ?: return
+        stallJob = viewModelScope.launch {
+            delay(STALL_MS)
+            if (_playback.value.channel?.id != channel.id || _playback.value.status != PlayStatus.Buffering) return@launch
+            Diagnostics.add("feeds", "still buffering after ${STALL_MS / 1000} s")
+            if (!tryBackupFeed(channel)) {
+                tune(channel, isRetry = true) // no other feed: a fresh link is the best bet
+            }
+        }
+    }
+
+    /**
+     * Moves to the channel's next untried feed. Returns false when there is none (or the setting is
+     * off), so the caller shows the error as before.
+     */
+    private fun tryBackupFeed(failed: ChannelRow): Boolean {
+        if (!store.backupFeeds) return false
+        val origin = failoverOrigin ?: failed.also { failoverOrigin = it }
+        failoverTried += failed.id
+        viewModelScope.launch {
+            val next = repo.alternativeFeeds(origin.id).firstOrNull { it !in failoverTried }?.let { repo.channel(it) }
+            if (next == null || _playback.value.channel?.id != failed.id) {
+                if (next == null && _playback.value.channel?.id == failed.id && _playback.value.status != PlayStatus.Playing) {
+                    _playback.update { it.copy(status = PlayStatus.Error, error = app.getString(R.string.feeds_all_failed)) }
+                }
+                return@launch
+            }
+            Diagnostics.add("feeds", "switching to another feed of the same channel")
+            failoverTried += next.id
+            showChannel(next)
+            showToast(app.getString(R.string.feeds_switched, next.name))
+            zapper.request(next)
+        }
+        return true
+    }
+
+    // --- Live pause and rewind -------------------------------------------------------------------
+
+    /** ⏪/⏩ while live TV is recorded: presses add up, then the picture moves once. */
+    private fun skip(deltaMs: Long) {
+        pendingSkipMs += deltaMs
+        updateTimeshift()
+        showBanner()
+        skipJob?.cancel()
+        skipJob = viewModelScope.launch {
+            delay(SKIP_SETTLE_MS)
+            val delta = pendingSkipMs
+            pendingSkipMs = 0
+            if (engine.owner === this@AppViewModel && engine.canTimeshift) engine.seekLive(delta)
+            updateTimeshift()
+        }
+    }
+
+    /** Keeps the banner's "behind live" figure current while it matters (paused or behind). */
+    private fun updateTimeshift() {
+        if (!engine.canTimeshift || engine.owner !== this) {
+            _timeshift.value = null
+            timeshiftJob?.cancel()
+            return
+        }
+        _timeshift.value = TimeshiftUi(engine.behindLiveMs(), paused = !engine.player.playWhenReady, pendingSkipMs = pendingSkipMs)
+        if (timeshiftJob?.isActive != true) {
+            timeshiftJob = viewModelScope.launch {
+                while (isActive && engine.canTimeshift && engine.owner === this@AppViewModel) {
+                    delay(1_000)
+                    _timeshift.value = TimeshiftUi(engine.behindLiveMs(), paused = !engine.player.playWhenReady, pendingSkipMs = pendingSkipMs)
+                }
+                _timeshift.value = null
+            }
+        }
+    }
+
+    // --- Reminders -------------------------------------------------------------------------------
+
+    /** ☰ on a programme in the guide: remind me when it starts (only for programmes not yet on). */
+    fun toggleReminder(programme: ProgrammeEntity) {
+        val now = System.currentTimeMillis() / 1000
+        if (programme.start <= now) {
+            showToast(R.string.reminder_already_on)
+            return
+        }
+        val key = "${programme.channelId}@${programme.start}"
+        val current = _reminders.value
+        val updated = if (current.any { it.key == key }) {
+            showToast(R.string.reminder_removed)
+            current.filterNot { it.key == key }
+        } else {
+            showToast(R.string.reminder_set)
+            current + Reminder(programme.channelId, programme.start, programme.stop, programme.title)
+        }
+        saveReminders(updated)
+    }
+
+    private fun saveReminders(list: List<Reminder>) {
+        _reminders.value = list
+        store.reminders = Reminder.encode(list)
+    }
+
+    /** Runs on the minute tick: shows the first due reminder, forgets the ones whose time has passed. */
+    private suspend fun checkReminders(nowSec: Long) {
+        val list = _reminders.value
+        if (list.isEmpty() || _dueReminder.value != null) return
+        val due = list.firstOrNull { Reminder.isDue(it, nowSec) }
+        val keep = list.filterNot { Reminder.isExpired(it, nowSec) || it === due }
+        if (keep.size != list.size) saveReminders(keep)
+        if (due == null) return
+        val channel = repo.channel(due.channelId) ?: return
+        // Already watching it: nothing to remind.
+        if (_screen.value == Screen.Tv && _playback.value.channel?.id == channel.id) return
+        _dueReminder.value = DueReminder(due, channel)
+    }
+
+    fun dismissReminder() {
+        _dueReminder.value = null
+    }
+
+    fun watchReminder() {
+        val due = _dueReminder.value ?: return
+        _dueReminder.value = null
+        watch(due.channel)
+    }
+
+    // --- Group menu ------------------------------------------------------------------------------
+
+    fun openGroupMenu(groupId: String) {
+        val group = genres.value.firstOrNull { it.id == groupId && it.kind == GroupKind.Provider } ?: return
+        _groupMenu.value = GroupMenuUi(group.id, group.title, group.pinned)
+    }
+
+    fun closeGroupMenu() {
+        _groupMenu.value = null
+    }
+
+    /** Hides a provider group from the list and from All channels (Settings → Favourites brings it back). */
+    fun hideGroup(groupId: String) {
+        _groupMenu.value = null
+        val updated = hiddenGroups.value + groupId
+        store.hiddenGroupIds = updated
+        hiddenGroups.value = updated
+        if (pinnedGroups.value.contains(groupId)) {
+            pinnedGroups.value = pinnedGroups.value - groupId
+            store.pinnedGroupIds = pinnedGroups.value
+        }
+        showToast(R.string.group_hidden)
     }
 
     private fun togglePlayPause() {
@@ -676,6 +900,11 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         if (playback.status == PlayStatus.Stopped || playback.status == PlayStatus.Error) {
             showChannel(channel)
             zapper.request(channel)
+        } else if (engine.canTimeshift && engine.owner === this) {
+            // Recorded live TV pauses for real; the recording carries on underneath.
+            engine.player.playWhenReady = !engine.player.playWhenReady
+            updateTimeshift()
+            showBanner()
         } else {
             // Live TV: "pause" releases the stream rather than holding the provider connection open.
             retryJob?.cancel()
@@ -690,8 +919,10 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         _playback.update { it.copy(status = status, error = if (status == PlayStatus.Error) it.error else null) }
     }
 
-    private fun showToast(@StringRes message: Int) {
-        _toast.value = app.getString(message)
+    private fun showToast(@StringRes message: Int) = showToast(app.getString(message))
+
+    private fun showToast(message: String) {
+        _toast.value = message
         toastJob?.cancel()
         toastJob = viewModelScope.launch {
             delay(TOAST_MS)
@@ -877,6 +1108,11 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     companion object {
         private const val MAX_AUTO_RETRIES = 1
+        /** Buffering this long means the feed has stalled (backup feeds kick in). */
+        private const val STALL_MS = 12_000L
+        private const val SKIP_MS = 30_000L
+        private const val SKIP_SETTLE_MS = 600L
+        private const val LIVE_EDGE_MS = 3_000L
         private const val HOME_LIST_SIZE = 5
         private const val BANNER_MS = 4_000L
         private const val TOAST_MS = 2_500L

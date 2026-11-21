@@ -54,7 +54,7 @@
         <item>◀◀ ▶▶ change group</item>
         <item>⏯ back to now</item>
         <item>Select · watch</item>
-        <item>☰ favourites</item>
+        <item>☰ remind me · favourites</item>
     </string-array>
     <string name="banner_no_guide">No guide for this channel</string>
     <string-array name="banner_keys">
@@ -64,6 +64,15 @@
         <item>☰ favourite</item>
         <item>◀◀ previous</item>
         <item>▶▶ audio &amp; subtitles</item>
+    </string-array>
+
+    <string-array name="banner_keys_rewind">
+        <item>▲▼ change channel</item>
+        <item>Select · channel list</item>
+        <item>◀ recent channels</item>
+        <item>⏯ pause</item>
+        <item>◀◀ ▶▶ 30 s</item>
+        <item>☰ favourite</item>
     </string-array>
 
     <string name="press_back_to_exit">Press Back again to exit</string>
@@ -232,8 +241,45 @@
     </plurals>
 
     <!-- Pinned groups (☰ on a provider group in the channel list) -->
-    <string name="hint_group_pin">☰ pin to top</string>
-    <string name="hint_group_unpin">☰ unpin</string>
+    <string name="hint_group_menu">☰ pin or hide</string>
+    <string name="group_menu_title">GROUP</string>
+    <string name="group_pin">Pin to the top</string>
+    <string name="group_unpin">Unpin</string>
+    <string name="group_hide">Hide this group</string>
+    <string name="group_hide_hint">Hidden groups leave the list and All channels. Bring them back in Settings → Favourites.</string>
+    <string name="group_hidden">Group hidden</string>
+    <string name="group_football">Football on now</string>
+    <string name="settings_hidden_groups">Hidden groups</string>
+    <string name="settings_hidden_groups_none">No hidden groups. Press ☰ on a group in the channel list to hide it.</string>
+    <string name="settings_show_group">Show %1$s</string>
+
+    <!-- Backup feeds -->
+    <string name="feeds_switched">Switched to %1$s</string>
+    <string name="feeds_all_failed">This channel isn\'t working, and none of its other feeds are either. Try again in a minute.</string>
+
+    <!-- Live pause and rewind -->
+    <string name="timeshift_live">LIVE</string>
+    <string name="timeshift_paused">Paused</string>
+    <string name="timeshift_behind">%1$s behind live</string>
+
+    <!-- Reminders -->
+    <string name="reminder_set">Reminder set</string>
+    <string name="reminder_set_short">Reminder set</string>
+    <string name="reminder_removed">Reminder removed</string>
+    <string name="reminder_already_on">That\'s already on. Press Select to watch.</string>
+    <string name="reminder_starting_soon">STARTING SOON</string>
+    <string name="reminder_on_now">ON NOW</string>
+    <string name="reminder_watch">Watch now</string>
+    <string name="reminder_dismiss">Dismiss</string>
+
+    <!-- Settings → Playback -->
+    <string name="settings_toggle">%1$s: %2$s</string>
+    <string name="settings_live_rewind">Pause and rewind live TV</string>
+    <string name="settings_live_rewind_hint">Keeps up to about 20 minutes of the channel on the Fire TV, so you can pause and rewind with ⏯ and ◀◀ ▶▶.</string>
+    <string name="settings_backup_feeds">Switch to a backup feed</string>
+    <string name="settings_backup_feeds_hint">If a channel stops or keeps buffering, Hinds TV moves to another copy of it (HD, FHD, backup).</string>
+    <string name="settings_match_frame_rate">Match frame rate</string>
+    <string name="settings_match_frame_rate_hint">Switches the TV to 50 Hz for UK channels, so football looks smoother. The screen may go black for a second when it switches.</string>
     <string name="group_pinned">Pinned to the top of your groups</string>
     <string name="group_unpinned">Unpinned</string>
 

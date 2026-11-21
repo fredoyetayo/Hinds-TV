@@ -16,6 +16,10 @@ import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.database.StandaloneDatabaseProvider
+import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
+import androidx.media3.datasource.cache.SimpleCache
+import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.extractor.DefaultExtractorsFactory
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
@@ -39,12 +43,33 @@ import java.util.concurrent.TimeUnit
 @OptIn(UnstableApi::class)
 class PlayerEngine(private val context: Context, http: OkHttpClient) {
 
-    private val httpFactory = OkHttpDataSource.Factory(http.newBuilder().readTimeout(15, TimeUnit.SECONDS).build())
-        .setUserAgent(PortalProfile.DEFAULT_USER_AGENT)
+    private val streamHttp = http.newBuilder().readTimeout(15, TimeUnit.SECONDS).build()
+    private val httpFactory = OkHttpDataSource.Factory(streamHttp).setUserAgent(PortalProfile.DEFAULT_USER_AGENT)
+    private var userAgent = PortalProfile.DEFAULT_USER_AGENT
+
+    /** The live channel being recorded for pause/rewind, if any (see [TimeshiftSession]). */
+    @Volatile private var session: TimeshiftSession? = null
+    private var sessionCount = 0
+
+    /** Where in the recording the current media item started. */
+    private var itemStartOffset = 0L
+
+    /** Live HLS with pause/rewind (see [HlsDvr]), and how far behind the edge "live" plays. */
+    private var dvr: HlsDvr? = null
+    private var liveGapMs = -1L
+
+    /** Segment cache for HLS rewind: a fresh folder each run; old runs are deleted in the background. */
+    private val dvrCache: SimpleCache by lazy {
+        val root = context.cacheDir.resolve("hls-dvr")
+        val dir = root.resolve(System.currentTimeMillis().toString())
+        Thread({ root.listFiles()?.filter { it != dir }?.forEach { it.deleteRecursively() } }, "HindsDvrCleanup").start()
+        SimpleCache(dir, LeastRecentlyUsedCacheEvictor(MAX_TIMESHIFT_BYTES), StandaloneDatabaseProvider(context))
+    }
 
     private var built = false
     private lateinit var liveSources: DefaultMediaSourceFactory
     private lateinit var vodSources: DefaultMediaSourceFactory
+    private lateinit var timeshiftSources: DefaultMediaSourceFactory
 
     val player: ExoPlayer by lazy { built = true; build() }
 
@@ -56,6 +81,7 @@ class PlayerEngine(private val context: Context, http: OkHttpClient) {
         private set
 
     fun setUserAgent(userAgent: String) {
+        this.userAgent = userAgent
         httpFactory.setUserAgent(userAgent)
     }
 
@@ -63,14 +89,34 @@ class PlayerEngine(private val context: Context, http: OkHttpClient) {
      * Plays [url]. Live streams and radio are endless ([vod] false); videos have a real length so
      * they can seek and resume from [startMs].
      */
-    fun play(url: String, owner: Any?, vod: Boolean = false, startMs: Long = 0) {
+    fun play(url: String, owner: Any?, vod: Boolean = false, startMs: Long = 0, timeshift: Boolean = false) {
         this.owner = owner
         Diagnostics.add("player", "${if (vod) "video" else "stream"}: $url")
+        val player = player
+        if (session != null || dvr != null) {
+            player.stop() // let go of the old recording before its files go
+            closeSession()
+        }
+        val recording = if (timeshift && !vod && !isHls(url)) startSession(url) else null
+        if (recording != null) {
+            playRecording(recording, offset = 0L)
+            player.playWhenReady = true
+            return
+        }
+        if (timeshift && !vod && isHls(url) && context.cacheDir.usableSpace / 2 >= MIN_TIMESHIFT_BYTES) {
+            val hls = HlsDvr(dvrCache, httpFactory)
+            dvr = hls
+            liveGapMs = -1
+            val item = MediaItem.Builder().setUri(url).setMimeType(MimeTypes.APPLICATION_M3U8).build()
+            player.setMediaSource(HlsMediaSource.Factory(hls).setAllowChunklessPreparation(true).createMediaSource(item))
+            player.prepare()
+            player.playWhenReady = true
+            return
+        }
         val item = MediaItem.Builder()
             .setUri(url)
             .apply { if (isHls(url)) setMimeType(MimeTypes.APPLICATION_M3U8) }
             .build()
-        val player = player
         val source = (if (vod) vodSources else liveSources).createMediaSource(item)
         player.setMediaSource(source, startMs.coerceAtLeast(0))
         player.prepare()
@@ -82,6 +128,97 @@ class PlayerEngine(private val context: Context, http: OkHttpClient) {
         if (!built) return
         player.stop()
         player.clearMediaItems()
+        closeSession()
+    }
+
+    // --- Live pause and rewind -------------------------------------------------------------------
+
+    /** True while live TV is being recorded, so it can pause and rewind. */
+    val canTimeshift: Boolean get() = session != null || dvr?.rewriting == true
+
+    /** HLS: the player's distance from the end of the window when it plays "live". */
+    private fun hlsGap(): Long {
+        val gap = player.duration - player.currentPosition
+        if (liveGapMs < 0 && player.isPlaying && player.duration > 0) liveGapMs = gap
+        return gap
+    }
+
+    /** How far behind live the picture is (grows while paused). 0 at the live edge. */
+    fun behindLiveMs(): Long {
+        if (dvr != null) {
+            if (!built || player.duration <= 0) return 0
+            val gap = hlsGap()
+            return if (liveGapMs < 0) 0 else (gap - liveGapMs).coerceAtLeast(0)
+        }
+        val s = session ?: return 0
+        if (!built) return 0
+        val live = s.buffer.lastWriteAt
+        val playhead = s.buffer.timeAt(itemStartOffset) + player.currentPosition
+        return (live - playhead).coerceAtLeast(0)
+    }
+
+    /** How far back the recording goes from live. */
+    fun recordedMs(): Long {
+        if (dvr != null) return if (built) player.duration.coerceAtLeast(0) else 0
+        val s = session ?: return 0
+        return (s.buffer.lastWriteAt - s.buffer.oldestTime).coerceAtLeast(0)
+    }
+
+    /** Moves the picture [deltaMs] (negative rewinds). Past the live edge plays live. */
+    fun seekLive(deltaMs: Long) {
+        if (dvr != null) {
+            val behind = behindLiveMs() - deltaMs
+            if (behind <= LIVE_EDGE_MS || liveGapMs < 0) player.seekToDefaultPosition()
+            else player.seekTo((player.duration - liveGapMs - behind).coerceAtLeast(0))
+            return
+        }
+        val s = session ?: return
+        val behind = behindLiveMs() - deltaMs
+        if (behind <= LIVE_EDGE_MS) {
+            playRecording(s, s.buffer.liveOffset)
+            return
+        }
+        val target = s.buffer.lastWriteAt - behind.coerceAtMost(recordedMs())
+        playRecording(s, s.buffer.offsetAt(target))
+    }
+
+    fun goLive() {
+        if (dvr != null) {
+            player.seekToDefaultPosition()
+            return
+        }
+        val s = session ?: return
+        playRecording(s, s.buffer.liveOffset)
+    }
+
+    private fun startSession(url: String): TimeshiftSession? {
+        val dir = context.cacheDir.resolve("timeshift")
+        dir.mkdirs()
+        // Leave the stick room: at most ~1.2 GB (about 20 minutes of HD), never more than half the free space.
+        val maxBytes = minOf(MAX_TIMESHIFT_BYTES, dir.usableSpace / 2)
+        if (maxBytes < MIN_TIMESHIFT_BYTES) {
+            Diagnostics.add("timeshift", "not enough free space to rewind live TV")
+            return null
+        }
+        return TimeshiftSession(++sessionCount, url, userAgent, streamHttp, dir, maxBytes).also {
+            session = it
+            it.start()
+        }
+    }
+
+    private fun playRecording(s: TimeshiftSession, offset: Long) {
+        itemStartOffset = offset
+        val item = MediaItem.fromUri("timeshift://${s.id}/$offset")
+        player.setMediaSource(timeshiftSources.createMediaSource(item))
+        player.prepare()
+    }
+
+    private fun closeSession() {
+        dvr?.close()
+        dvr = null
+        session?.close()
+        session = null
+        itemStartOffset = 0
     }
 
     val hasMedia: Boolean get() = built && player.mediaItemCount > 0
@@ -139,6 +276,7 @@ class PlayerEngine(private val context: Context, http: OkHttpClient) {
             .setConstantBitrateSeekingEnabled(true) // seekable MP3/AAC/TS videos without an index
         liveSources = DefaultMediaSourceFactory(liveDataSourceFactory, extractors)
         vodSources = DefaultMediaSourceFactory(httpFactory, extractors)
+        timeshiftSources = DefaultMediaSourceFactory(DataSource.Factory { TimeshiftDataSource { session } }, extractors)
         val mediaSourceFactory = liveSources
         val renderers = DefaultRenderersFactory(context)
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
@@ -181,6 +319,13 @@ class PlayerEngine(private val context: Context, http: OkHttpClient) {
             }
         })
         return player
+    }
+
+    private companion object {
+        const val MAX_TIMESHIFT_BYTES = 1_200L * 1024 * 1024
+        const val MIN_TIMESHIFT_BYTES = 200L * 1024 * 1024
+        /** Closer to live than this counts as live. */
+        const val LIVE_EDGE_MS = 3_000L
     }
 
     private fun isHls(url: String): Boolean {

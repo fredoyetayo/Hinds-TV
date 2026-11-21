@@ -34,6 +34,7 @@ import com.hindstv.ui.AppViewModel
 import com.hindstv.ui.Overlay
 import com.hindstv.ui.PlayStatus
 import com.hindstv.ui.PlaybackUi
+import com.hindstv.ui.TimeshiftUi
 import com.hindstv.ui.components.ChannelLogo
 import com.hindstv.ui.components.ChannelWordmark
 import com.hindstv.ui.components.Clock
@@ -126,6 +127,8 @@ private fun InfoBanner(vm: AppViewModel, playback: PlaybackUi, modifier: Modifie
                 if (now == null && next == null) {
                     Text(stringResource(R.string.banner_no_guide), fontSize = 14.sp, fontWeight = FontWeight.Medium, color = HindsColors.Muted)
                 }
+                val timeshift by vm.timeshift.collectAsStateWithLifecycle()
+                timeshift?.let { TimeshiftLine(it) }
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(formatTime(minute), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp)
@@ -136,12 +139,47 @@ private fun InfoBanner(vm: AppViewModel, playback: PlaybackUi, modifier: Modifie
                 }
             }
         }
+        val canRewind = vm.timeshift.collectAsStateWithLifecycle().value != null
         Row(Modifier.padding(top = 22.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-            stringArrayResource(R.array.banner_keys).forEach {
+            stringArrayResource(if (canRewind) R.array.banner_keys_rewind else R.array.banner_keys).forEach {
                 Text(it, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = HindsColors.Muted, maxLines = 1)
             }
         }
     }
+}
+
+/** LIVE, or how far behind live (and paused); a pending ⏪/⏩ shows as −0:30 / +0:30. */
+@Composable
+private fun TimeshiftLine(state: TimeshiftUi) {
+    val atLive = state.behindMs < 3_000 && !state.paused && state.pendingSkipMs == 0L
+    Row(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            if (atLive) stringResource(R.string.timeshift_live) else if (state.paused) "⏸" else "◷",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.5.sp,
+            color = HindsColors.OnAccent,
+            modifier = Modifier.background(if (atLive) HindsColors.Error else HindsColors.Accent, HindsShapes.Pill).padding(horizontal = 8.dp, vertical = 2.dp),
+        )
+        if (!atLive) {
+            val behind = stringResource(R.string.timeshift_behind, formatDuration(state.behindMs))
+            Text(
+                listOfNotNull(
+                    if (state.paused) stringResource(R.string.timeshift_paused) else null,
+                    behind,
+                    state.pendingSkipMs.takeIf { it != 0L }?.let { (if (it < 0) "−" else "+") + formatDuration(kotlin.math.abs(it)) },
+                ).joinToString("  ·  "),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = HindsColors.Muted,
+            )
+        }
+    }
+}
+
+private fun formatDuration(ms: Long): String {
+    val total = ms / 1000
+    return if (total >= 3600) "%d:%02d:%02d".format(total / 3600, total / 60 % 60, total % 60) else "%d:%02d".format(total / 60, total % 60)
 }
 
 @Composable

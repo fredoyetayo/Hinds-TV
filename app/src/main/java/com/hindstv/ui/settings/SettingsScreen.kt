@@ -389,13 +389,22 @@ private fun AccountPane(vm: SettingsViewModel, onChangeAccount: () -> Unit, onRe
 @Composable
 private fun FavouritesPane(vm: SettingsViewModel, onEditList: (Long, String) -> Unit) {
     val lists by vm.lists.collectAsStateWithLifecycle()
+    val hidden by vm.hiddenGroups.collectAsStateWithLifecycle()
     PaneTitle(stringResource(R.string.settings_favourites))
     Hint(stringResource(R.string.settings_favourites_hint))
-    if (lists.isEmpty()) {
-        Hint(stringResource(R.string.settings_no_lists))
-        return
-    }
+    if (lists.isEmpty()) Hint(stringResource(R.string.settings_no_lists))
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+        item(key = "__hidden_title") {
+            Text(
+                stringResource(R.string.settings_hidden_groups),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(top = if (lists.isEmpty()) 0.dp else 10.dp),
+            )
+        }
+        if (hidden.isEmpty()) item(key = "__hidden_none") { Hint(stringResource(R.string.settings_hidden_groups_none)) }
+        items(hidden, key = { "hidden:" + it.first }) { (id, title) ->
+            PillButton(stringResource(R.string.settings_show_group, title), onClick = { vm.showGroup(id) })
+        }
         items(lists, key = { it.id }) { list ->
             Row(
                 Modifier.fillMaxWidth().background(HindsColors.Surface, HindsShapes.Large).padding(horizontal = 18.dp, vertical = 10.dp),
@@ -421,13 +430,34 @@ private fun FavouritesPane(vm: SettingsViewModel, onEditList: (Long, String) -> 
 @Composable
 private fun PlaybackPane(vm: SettingsViewModel) {
     val invert by vm.invertUpDown.collectAsStateWithLifecycle()
-    PaneTitle(stringResource(R.string.settings_playback))
+    val rewind by vm.liveRewind.collectAsStateWithLifecycle()
+    val feeds by vm.backupFeeds.collectAsStateWithLifecycle()
+    val frameRate by vm.matchFrameRate.collectAsStateWithLifecycle()
+    Column(
+        Modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        PaneTitle(stringResource(R.string.settings_playback))
+        Toggle(R.string.settings_live_rewind, R.string.settings_live_rewind_hint, rewind, vm::setLiveRewind)
+        Toggle(R.string.settings_backup_feeds, R.string.settings_backup_feeds_hint, feeds, vm::setBackupFeeds)
+        Toggle(R.string.settings_match_frame_rate, R.string.settings_match_frame_rate_hint, frameRate, vm::setMatchFrameRate)
+        PillButton(
+            stringResource(R.string.settings_invert, stringResource(if (invert) R.string.on else R.string.off)),
+            onClick = { vm.setInvertUpDown(!invert) },
+            primary = invert,
+        )
+        Hint(stringResource(R.string.settings_invert_hint))
+    }
+}
+
+@Composable
+private fun Toggle(@androidx.annotation.StringRes label: Int, @androidx.annotation.StringRes hint: Int, on: Boolean, onChange: (Boolean) -> Unit) {
     PillButton(
-        stringResource(R.string.settings_invert, stringResource(if (invert) R.string.on else R.string.off)),
-        onClick = { vm.setInvertUpDown(!invert) },
-        primary = invert,
+        stringResource(R.string.settings_toggle, stringResource(label), stringResource(if (on) R.string.on else R.string.off)),
+        onClick = { onChange(!on) },
+        primary = on,
     )
-    Hint(stringResource(R.string.settings_invert_hint))
+    Hint(stringResource(hint))
 }
 
 @Composable

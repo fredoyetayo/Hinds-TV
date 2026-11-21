@@ -21,7 +21,9 @@ import com.hindstv.ui.search.SearchScreen
 import com.hindstv.ui.settings.SettingsScreen
 import com.hindstv.ui.setup.SetupScreen
 import com.hindstv.ui.theme.HindsTheme
+import com.hindstv.ui.tv.GroupMenuDialog
 import com.hindstv.ui.tv.ListEditDialog
+import com.hindstv.ui.tv.ReminderDialog
 import com.hindstv.ui.tv.ListPickerDialog
 import com.hindstv.ui.tv.TrackPickerDialog
 import com.hindstv.ui.tv.TvScreen
@@ -33,6 +35,8 @@ class MainActivity : ComponentActivity() {
     private val radioVm: RadioViewModel by viewModels { RadioViewModel.Factory }
     private val searchVm: SearchViewModel by viewModels { SearchViewModel.Factory }
     private val settingsVm: SettingsViewModel by viewModels { SettingsViewModel.Factory }
+
+    private var frameRates: FrameRateMatcher? = null
 
     /** Keys whose DOWN we consumed; their UP must not leak into Compose (e.g. a stray click). */
     private val consumedKeys = mutableSetOf<Int>()
@@ -47,6 +51,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        val container = (application as HindsApp).container
+        frameRates = FrameRateMatcher(this, container.player.player) { container.profileStore.matchFrameRate }.also { it.attach() }
         vm.onForeground()
     }
 
@@ -54,6 +60,8 @@ class MainActivity : ComponentActivity() {
         videoVm.onBackground() // saves the resume position before the player stops
         radioVm.stop()
         vm.onBackground()
+        frameRates?.detach()
+        frameRates = null
         super.onStop()
     }
 
@@ -162,6 +170,20 @@ private fun HindsRoot(
     val listEdit by vm.listEdit.collectAsStateWithLifecycle()
     listPicker?.let { ListPickerDialog(it, vm::toggleInList, vm::createListWith, vm::closeListPicker) }
     listEdit?.let { ListEditDialog(it, vm::renameList, vm::deleteList, vm::closeListEdit) }
+    val groupMenu by vm.groupMenu.collectAsStateWithLifecycle()
+    groupMenu?.let { GroupMenuDialog(it, vm::togglePinGroup, vm::hideGroup, vm::closeGroupMenu) }
+    val dueReminder by vm.dueReminder.collectAsStateWithLifecycle()
+    dueReminder?.let {
+        ReminderDialog(
+            it,
+            onWatch = {
+                videoVm.onLeave()
+                radioVm.stop()
+                vm.watchReminder()
+            },
+            onDismiss = vm::dismissReminder,
+        )
+    }
     val updater = (LocalContext.current.applicationContext as HindsApp).container.updater
     val update by updater.state.collectAsStateWithLifecycle()
     val dismissedUpdate by updater.dismissed.collectAsStateWithLifecycle()

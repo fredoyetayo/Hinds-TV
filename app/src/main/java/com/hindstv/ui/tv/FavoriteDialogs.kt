@@ -122,3 +122,53 @@ internal fun DialogPanel(content: @Composable () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) { content() }
 }
+
+/** ☰ on one of the provider's groups: pin it to the top of the list, or hide it. */
+@Composable
+fun GroupMenuDialog(
+    menu: com.hindstv.ui.GroupMenuUi,
+    onTogglePin: (String) -> Unit,
+    onHide: (String) -> Unit,
+    onClose: () -> Unit,
+) {
+    val firstFocus = remember { FocusRequester() }
+    Dialog(onDismissRequest = onClose) {
+        DialogPanel {
+            Text(stringResource(R.string.group_menu_title), style = MaterialTheme.typography.labelMedium, color = HindsColors.Accent)
+            Text(menu.title, style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            PillButton(
+                stringResource(if (menu.pinned) R.string.group_unpin else R.string.group_pin),
+                onClick = { onTogglePin(menu.groupId) },
+                primary = true,
+                modifier = Modifier.focusRequester(firstFocus),
+            )
+            PillButton(stringResource(R.string.group_hide), onClick = { onHide(menu.groupId) })
+            Text(stringResource(R.string.group_hide_hint), style = MaterialTheme.typography.bodySmall, color = HindsColors.Muted)
+            PillButton(stringResource(R.string.cancel), onClick = onClose)
+        }
+    }
+    LaunchedEffect(Unit) { firstFocus.requestFocusSoon() }
+}
+
+/** A guide reminder is due: watch the programme now, or dismiss. */
+@Composable
+fun ReminderDialog(due: com.hindstv.ui.DueReminder, onWatch: () -> Unit, onDismiss: () -> Unit) {
+    val firstFocus = remember { FocusRequester() }
+    val starting = due.reminder.start > System.currentTimeMillis() / 1000
+    Dialog(onDismissRequest = onDismiss) {
+        DialogPanel {
+            Text(
+                stringResource(if (starting) R.string.reminder_starting_soon else R.string.reminder_on_now),
+                style = MaterialTheme.typography.labelMedium,
+                color = HindsColors.Accent,
+            )
+            Text(due.reminder.title, style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(due.channel.name, color = HindsColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                PillButton(stringResource(R.string.reminder_watch), onClick = onWatch, primary = true, modifier = Modifier.focusRequester(firstFocus))
+                PillButton(stringResource(R.string.reminder_dismiss), onClick = onDismiss)
+            }
+        }
+    }
+    LaunchedEffect(Unit) { firstFocus.requestFocusSoon() }
+}

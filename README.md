@@ -33,6 +33,10 @@ Then install the app, either way:
 
 Hinds TV appears under **Apps** (Recent / My Library).
 
+**Watching football:** the ⚽ Football on now group at the top of the channel list collects what's on now.
+Press ☰ on any group to pin it to the top or hide it. ⏯ pauses live TV and ◀◀ ▶▶ jump 30 seconds (Settings →
+Playback). In the guide, ☰ on a programme still to come sets a reminder.
+
 **Updates** after that are built in: when a new version is out, Hinds TV offers it when it opens. Press
 **Update now**, then **Install** on the Fire TV screen. The first time, Fire TV asks you to allow Hinds TV under
 **Install unknown apps**. Settings → About → **Check for updates** checks straight away. From a computer,

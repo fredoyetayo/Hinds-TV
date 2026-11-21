@@ -115,6 +115,41 @@ class SettingsViewModel(app: HindsApp) : ViewModel() {
         viewModelScope.launch { channels.moveList(listId, delta) }
     }
 
+    private val _liveRewind = MutableStateFlow(store.liveRewind)
+    val liveRewind: StateFlow<Boolean> = _liveRewind.asStateFlow()
+
+    private val _backupFeeds = MutableStateFlow(store.backupFeeds)
+    val backupFeeds: StateFlow<Boolean> = _backupFeeds.asStateFlow()
+
+    private val _matchFrameRate = MutableStateFlow(store.matchFrameRate)
+    val matchFrameRate: StateFlow<Boolean> = _matchFrameRate.asStateFlow()
+
+    fun setLiveRewind(on: Boolean) {
+        store.liveRewind = on // applies from the next channel
+        _liveRewind.value = on
+    }
+
+    fun setBackupFeeds(on: Boolean) {
+        store.backupFeeds = on
+        _backupFeeds.value = on
+    }
+
+    fun setMatchFrameRate(on: Boolean) {
+        store.matchFrameRate = on
+        _matchFrameRate.value = on
+    }
+
+    /** Groups hidden from the channel list, with their names (ids a re-sync dropped are left out). */
+    val hiddenGroups: StateFlow<List<Pair<String, String>>> = kotlinx.coroutines.flow.combine(container.hiddenGroups, channels.genres()) { hidden, genres ->
+        genres.filter { it.id in hidden }.map { it.id to it.title }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun showGroup(groupId: String) {
+        val updated = container.hiddenGroups.value - groupId
+        store.hiddenGroupIds = updated
+        container.hiddenGroups.value = updated
+    }
+
     fun setInvertUpDown(invert: Boolean) {
         store.invertUpDown = invert
         _invertUpDown.value = invert

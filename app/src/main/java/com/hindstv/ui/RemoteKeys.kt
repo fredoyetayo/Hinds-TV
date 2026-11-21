@@ -12,7 +12,8 @@ enum class RemoteAction { ChannelUp, ChannelDown, OpenList, OpenRecent, OpenGuid
  * - Anywhere outside the guide: the Live/Guide (TV) button opens the TV guide.
  * - Full-screen video: ▲/CH+ next channel, ▼/CH− previous, Select opens the channel list, ◀ the
  *   recent-channels strip,
- *   ▶ shows info, ⏪ jumps back to the previous channel, ☰ toggles favourite, ⏯ stops/resumes,
+ *   ▶ shows info, ⏪ previous channel (or rewinds 30 s when live rewind is on; the view model decides),
+ *   ⏩ Audio & subtitles (or forward 30 s while behind live), ☰ toggles favourite, ⏯ stops/resumes (or pauses),
  *   Back asks to press again to exit.
  * - While the channel list is open, only CH+/CH− are taken here; everything else drives focus.
  */

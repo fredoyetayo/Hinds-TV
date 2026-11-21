@@ -2,6 +2,11 @@ package com.hindstv.data
 
 import com.hindstv.data.db.ChannelDao
 import com.hindstv.data.db.ChannelEntity
+import com.hindstv.data.db.ChannelName
+import com.hindstv.live.FeedMatcher
+import com.hindstv.live.FootballMatcher
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import com.hindstv.data.db.ChannelRow
 import com.hindstv.data.db.EpgDao
 import com.hindstv.data.db.FavoriteItemEntity
@@ -30,6 +35,8 @@ class ChannelRepository(
     private val dao: ChannelDao,
     private val epgDao: EpgDao,
     private val store: ProfileStore,
+    /** Groups the user hid: left out of All channels and Football on now. */
+    private val hiddenGroups: StateFlow<Set<String>>,
     private val source: () -> ChannelSource,
 ) {
     fun genres(): Flow<List<GenreEntity>> = dao.genres()
@@ -38,8 +45,51 @@ class ChannelRepository(
 
     fun channels(genreId: String): Flow<List<ChannelRow>> {
         if (genreId == RECENT) return recentChannels()
+        if (genreId == FOOTBALL) return footballChannels()
         listIdOf(genreId)?.let { return dao.listChannels(it) }
-        return if (genreId == ALL) dao.allChannels() else dao.channelsInGenre(genreId)
+        return if (genreId == ALL) hiddenGroups.flatMapLatest { dao.allChannelsExcept(it.toList()) } else dao.channelsInGenre(genreId)
+    }
+
+    // --- Football on now -------------------------------------------------------------------------
+
+    private val footballIds = MutableStateFlow<List<String>>(emptyList())
+
+    private fun footballChannels(): Flow<List<ChannelRow>> =
+        combine(footballIds, hiddenGroups) { ids, hidden -> ids to hidden }
+            .flatMapLatest { (ids, hidden) -> dao.visibleChannelsByIds(ids, hidden.toList()) }
+
+    /** How many channels have football on (hidden groups left out); the group shows this count. */
+    fun footballCount(): Flow<Int> = footballChannels().map { it.size }
+
+    /** Re-reads the guide for football on at [nowSec] (called every minute and after a guide update). */
+    suspend fun refreshFootball(nowSec: Long) {
+        val all = names()
+        val names = all.associateBy { it.id }
+        val fromGuide = epgDao.airingAt(nowSec)
+            .filter { FootballMatcher.isFootball(it.title, it.description, names[it.channelId]?.name) }
+            .map { it.channelId }
+        // Event channels named after the match, which usually have no guide at all.
+        val minuteOfDay = java.util.Calendar.getInstance().apply { timeInMillis = nowSec * 1000 }
+            .let { it.get(java.util.Calendar.HOUR_OF_DAY) * 60 + it.get(java.util.Calendar.MINUTE) }
+        val fromNames = all.filter { FootballMatcher.isFixtureName(it.name, minuteOfDay) }.map { it.id }
+        val ids = (fromGuide + fromNames).distinct()
+        if (ids != footballIds.value) footballIds.value = ids
+    }
+
+    // --- Other feeds of a channel ----------------------------------------------------------------
+
+    @Volatile private var nameCache: List<ChannelName>? = null
+
+    private suspend fun names(): List<ChannelName> = nameCache ?: dao.channelNames().also { nameCache = it }
+
+    /** The channel's other feeds (HD/FHD/backup copies), best first. */
+    suspend fun alternativeFeeds(channelId: String): List<String> {
+        val all = names()
+        val current = all.firstOrNull { it.id == channelId } ?: return emptyList()
+        return FeedMatcher.alternatives(
+            FeedMatcher.Candidate(current.id, current.name, current.genreId),
+            all.map { FeedMatcher.Candidate(it.id, it.name, it.genreId) },
+        ).map { it.id }
     }
 
     // --- Recently watched ------------------------------------------------------------------------
@@ -92,7 +142,7 @@ class ChannelRepository(
 
     suspend fun channelCount(): Int = dao.channelCount()
 
-    fun channelCountFlow(): Flow<Int> = dao.channelCountFlow()
+    fun channelCountFlow(): Flow<Int> = hiddenGroups.flatMapLatest { dao.channelCountExcept(it.toList()) }
 
     suspend fun deleteList(listId: Long) = dao.deleteList(listId)
 
@@ -139,6 +189,7 @@ class ChannelRepository(
             videos = content.videos.mapIndexed { i, v -> VideoEntity(v.id, v.categoryId, i, v.title, v.poster, v.cmd) },
             radio = content.radio.mapIndexed { i, r -> RadioEntity(r.id, i, r.number, r.name, r.logo, r.cmd) },
         )
+        nameCache = null
         store.discoveredEpgUrl = content.epgUrl
         rememberSession(active)
         store.lastSyncAt = System.currentTimeMillis()
@@ -198,6 +249,7 @@ class ChannelRepository(
             if (genreId.startsWith(LIST_PREFIX)) genreId.removePrefix(LIST_PREFIX).toLongOrNull() else null
         const val ALL = "__all"
         const val RECENT = "__recent"
+        const val FOOTBALL = "__football"
         const val EPG_PAST_S = 2 * 3600L
         const val EPG_AHEAD_S = 12 * 3600L
     }

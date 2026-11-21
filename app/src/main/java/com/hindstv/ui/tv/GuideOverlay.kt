@@ -100,6 +100,7 @@ fun GuideOverlay(vm: AppViewModel, onNavigate: (NavSection) -> Unit) {
     val playback by vm.playback.collectAsStateWithLifecycle()
     val minute by vm.minute.collectAsStateWithLifecycle()
     val revision by vm.epgRevision.collectAsStateWithLifecycle()
+    val reminderKeys by vm.reminderKeys.collectAsStateWithLifecycle()
     val channels = genreChannels?.takeIf { it.genreId == selectedGenre }?.channels.orEmpty()
 
     var focusedRow by remember { mutableIntStateOf(-1) }
@@ -167,6 +168,7 @@ fun GuideOverlay(vm: AppViewModel, onNavigate: (NavSection) -> Unit) {
                 group = genres.firstOrNull { it.id == selectedGenre },
                 channel = focusedChannel,
                 programme = focused,
+                reminded = focused != null && "${focused.channelId}@${focused.start}" in reminderKeys,
                 modifier = Modifier.padding(top = 17.dp).height(HEADER_HEIGHT),
             )
             Row(
@@ -187,7 +189,11 @@ fun GuideOverlay(vm: AppViewModel, onNavigate: (NavSection) -> Unit) {
                             KeyEvent.KEYCODE_DPAD_LEFT -> moveTime(forward = false)
                             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER ->
                                 focusedChannel?.let { vm.play(it, selectedGenre) }
-                            KeyEvent.KEYCODE_MENU -> focusedChannel?.let { vm.toggleFavorite(it.id) }
+                            // ☰ on a programme still to come sets a reminder; otherwise it adds the channel to a list.
+                            KeyEvent.KEYCODE_MENU -> when {
+                                focused != null && focused.start > minute -> vm.toggleReminder(focused)
+                                else -> focusedChannel?.let { vm.toggleFavorite(it.id) }
+                            }
                             // ⏪ ⏩ step through the groups (favourites lists first), ⏯ back to now.
                             KeyEvent.KEYCODE_MEDIA_REWIND -> vm.stepGuideGroup(-1)
                             KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> vm.stepGuideGroup(+1)
@@ -222,6 +228,7 @@ fun GuideOverlay(vm: AppViewModel, onNavigate: (NavSection) -> Unit) {
                         timelineHeight = TIMELINE_HEIGHT.toPx(),
                         noGuide = noGuideText,
                         colors = palette,
+                        reminders = reminderKeys,
                     )
                 }
             }
@@ -255,7 +262,13 @@ private fun GuideChannelCell(channel: ChannelRow) {
 
 /** ⏪ group ⏩, then the focused programme: title, channel and time, description. */
 @Composable
-private fun GuideHeader(group: GenreItem?, channel: ChannelRow?, programme: ProgrammeEntity?, modifier: Modifier = Modifier) {
+private fun GuideHeader(
+    group: GenreItem?,
+    channel: ChannelRow?,
+    programme: ProgrammeEntity?,
+    reminded: Boolean,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
             GuideKeyCap("◀◀")
@@ -278,7 +291,7 @@ private fun GuideHeader(group: GenreItem?, channel: ChannelRow?, programme: Prog
             programme?.timeRange(),
         ).joinToString("  ·  ")
         Text(
-            meta.ifEmpty { stringResource(R.string.no_guide) },
+            (if (reminded) "⏰ " + stringResource(R.string.reminder_set_short) + "  ·  " else "") + meta.ifEmpty { stringResource(R.string.no_guide) },
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             color = HindsColors.Muted,
@@ -324,6 +337,7 @@ private fun DrawScope.drawGuide(
     timelineHeight: Float,
     noGuide: String,
     colors: HindsPalette,
+    reminders: Set<String>,
 ) {
     val gridWidth = size.width
     val gap = 4.dp.toPx()
@@ -379,7 +393,8 @@ private fun DrawScope.drawGuide(
                     p.stop <= nowSec -> colors.faint
                     else -> colors.text
                 }
-                drawSingleLine(measurer, p.title, titleStyle.copy(color = fg), Offset(x0 + pad, top + 5.dp.toPx()), textWidth)
+                val title = if ("${p.channelId}@${p.start}" in reminders) "⏰ ${p.title}" else p.title
+                drawSingleLine(measurer, title, titleStyle.copy(color = fg), Offset(x0 + pad, top + 5.dp.toPx()), textWidth)
                 drawSingleLine(
                     measurer, p.timeRange(), timeStyle.copy(color = if (isFocused) colors.onFocus else colors.muted),
                     Offset(x0 + pad, top + rowHeight - 19.dp.toPx()), textWidth,

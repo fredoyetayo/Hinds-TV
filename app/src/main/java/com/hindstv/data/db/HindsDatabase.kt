@@ -129,6 +129,9 @@ data class WatchProgressEntity(
 /** A favourites list with how many channels it holds (Settings). */
 data class ListSummary(val id: Long, val name: String, val sortOrder: Int, val count: Int)
 
+/** Names only, for matching a channel's other feeds and spotting football. */
+data class ChannelName(val id: String, val name: String, val genreId: String)
+
 /** What the guide importer needs per channel. */
 data class EpgRef(val channelId: String, val epgId: String?, val name: String)
 
@@ -164,6 +167,25 @@ abstract class ChannelDao {
 
     @Query("SELECT c.id, c.number, c.name, c.logo, c.genreId, $IS_FAVORITE FROM channels c WHERE c.id IN (:ids)")
     abstract fun channelsByIds(ids: List<String>): Flow<List<ChannelRow>>
+
+    /** All channels except those in groups the user hid. */
+    @Query(
+        "SELECT c.id, c.number, c.name, c.logo, c.genreId, $IS_FAVORITE FROM channels c " +
+            "WHERE c.genreId NOT IN (:hidden) ORDER BY c.sortOrder",
+    )
+    abstract fun allChannelsExcept(hidden: List<String>): Flow<List<ChannelRow>>
+
+    @Query("SELECT COUNT(*) FROM channels WHERE genreId NOT IN (:hidden)")
+    abstract fun channelCountExcept(hidden: List<String>): Flow<Int>
+
+    @Query(
+        "SELECT c.id, c.number, c.name, c.logo, c.genreId, $IS_FAVORITE FROM channels c " +
+            "WHERE c.id IN (:ids) AND c.genreId NOT IN (:hidden) ORDER BY c.sortOrder",
+    )
+    abstract fun visibleChannelsByIds(ids: List<String>, hidden: List<String>): Flow<List<ChannelRow>>
+
+    @Query("SELECT id, name, genreId FROM channels ORDER BY sortOrder")
+    abstract suspend fun channelNames(): List<ChannelName>
 
     @Query("SELECT c.id, c.number, c.name, c.logo, c.genreId, $IS_FAVORITE FROM channels c WHERE c.id = :id")
     abstract suspend fun channelRow(id: String): ChannelRow?

@@ -51,7 +51,11 @@ class AppContainer(private val app: Application) {
     val http by lazy { Http.createClient() }
     val profileStore by lazy { ProfileStore(app) }
     val database by lazy { HindsDatabase.create(app) }
-    val channels by lazy { ChannelRepository(database.channelDao(), database.epgDao(), profileStore) { source() } }
+    val channels by lazy { ChannelRepository(database.channelDao(), database.epgDao(), profileStore, hiddenGroups) { source() } }
+
+    /** Provider groups pinned to the top / hidden, shared by the channel list and Settings. */
+    val pinnedGroups by lazy { MutableStateFlow(profileStore.pinnedGroupIds) }
+    val hiddenGroups by lazy { MutableStateFlow(profileStore.hiddenGroupIds) }
     val media by lazy { MediaRepository(database.mediaDao()) { source() } }
     val player by lazy { PlayerEngine(app, http) }
     val trackPicker by lazy { TrackPicker(player) }

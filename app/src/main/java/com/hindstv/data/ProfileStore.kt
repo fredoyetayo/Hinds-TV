@@ -109,6 +109,31 @@ class ProfileStore(context: Context) {
         get() = prefs.getStringSet(KEY_PINNED_GROUPS, null)?.toSet().orEmpty()
         set(value) = prefs.edit { putStringSet(KEY_PINNED_GROUPS, value) }
 
+    /** Provider groups the user hid from the group list and from All channels, by group id. */
+    var hiddenGroupIds: Set<String>
+        get() = prefs.getStringSet(KEY_HIDDEN_GROUPS, null)?.toSet().orEmpty()
+        set(value) = prefs.edit { putStringSet(KEY_HIDDEN_GROUPS, value) }
+
+    /** Guide reminders, encoded by `Reminder.encode`. */
+    var reminders: String?
+        get() = prefs.getString(KEY_REMINDERS, null)
+        set(value) = prefs.edit { putString(KEY_REMINDERS, value) }
+
+    /** Record live TV to the stick so it can pause and rewind (Settings → Playback). */
+    var liveRewind: Boolean
+        get() = prefs.getBoolean(KEY_LIVE_REWIND, true)
+        set(value) = prefs.edit { putBoolean(KEY_LIVE_REWIND, value) }
+
+    /** Move to another feed of the same channel when one fails or keeps buffering. */
+    var backupFeeds: Boolean
+        get() = prefs.getBoolean(KEY_BACKUP_FEEDS, true)
+        set(value) = prefs.edit { putBoolean(KEY_BACKUP_FEEDS, value) }
+
+    /** Switch the TV to 50/60 Hz to suit what is playing. */
+    var matchFrameRate: Boolean
+        get() = prefs.getBoolean(KEY_MATCH_FRAME_RATE, true)
+        set(value) = prefs.edit { putBoolean(KEY_MATCH_FRAME_RATE, value) }
+
     /** ▲ goes to the previous channel instead of the next (list order). */
     var invertUpDown: Boolean
         get() = prefs.getBoolean(KEY_INVERT, false)
@@ -155,6 +180,11 @@ class ProfileStore(context: Context) {
         const val KEY_INVERT = "invert_up_down"
         const val KEY_THEME_MODE = "theme_mode"
         const val KEY_PINNED_GROUPS = "pinned_groups"
+        const val KEY_HIDDEN_GROUPS = "hidden_groups"
+        const val KEY_REMINDERS = "reminders"
+        const val KEY_LIVE_REWIND = "live_rewind"
+        const val KEY_BACKUP_FEEDS = "backup_feeds"
+        const val KEY_MATCH_FRAME_RATE = "match_frame_rate"
         const val KEY_RECENT_CHANNELS = "recent_channels"
         const val KEY_START_WITH = "start_with"
         const val KEY_WALL_DARK = "wallpaper_dark"

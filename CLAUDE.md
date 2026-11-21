@@ -69,7 +69,14 @@ app/src/main/java/com/hindstv/
   data/MediaRepository.kt      videos (portal: online, paged; playlist: DB), episodes, radio, resume positions
   data/ProfileStore.kt         SharedPreferences: profile, cached endpoint + session token, last channel/group,
                                recent channels (20, `Recents.kt`), last sync, recent searches, theme, start with
-  player/PlayerEngine.kt       the one ExoPlayer: tuned LoadControl, OkHttp data source, TS flags, FFmpeg ext
+  player/PlayerEngine.kt       the one ExoPlayer: tuned LoadControl, OkHttp data source, TS flags, FFmpeg ext;
+                               live pause/rewind (`canTimeshift`, `behindLiveMs`, `seekLive`, `goLive`)
+  player/HlsDvr.kt             live HLS rewind: playlists via HlsWindow (keeps ~20 min of segments, tested),
+                               segments via a SimpleCache (LRU 1.2 GB, fresh folder per run), prefetch while paused
+  player/TimeshiftBuffer.kt    live TS rewind: TimeshiftSession records the stream to segment files (tested);
+                               the player reads them through TimeshiftDataSource (`timeshift://<session>/<offset>`)
+  live/                        pure, tested: FeedMatcher (other feeds of a channel), FootballMatcher (guide titles,
+                               event-channel names + kick-off window), Reminder (codec, due/expiry), FrameRates
   player/ZapController.kt      zap debouncing (lone press = instant, bursts settle 500 ms)
   player/ResumePolicy.kt       when a video counts as started/finished and where to resume (pure, tested)
   player/Tracks.kt             TrackOption/TrackChoices + TrackLabels ("English · 5.1 · Dolby Digital", tested)
@@ -81,6 +88,7 @@ app/src/main/java/com/hindstv/
                                diagnostics; maskMac/hostOf (tested)
   ui/TrackPicker.kt            app-wide "Audio & subtitles" dialog state over the one PlayerEngine
   ui/MainActivity.kt           full-screen remote handling in dispatchKeyEvent; lifecycle → VM
+  ui/FrameRateMatcher.kt       measures the video's fps from frame timestamps, sets preferredDisplayModeId (50/60 Hz)
   ui/RemoteKeys.kt             keycode → RemoteAction mapping
   ui/tv/                       TvScreen (video, info banner, toasts), ChannelListOverlay, GuideOverlay
   ui/videos/                   VideosScreen (library rows), DetailsPage, VideoPlayerPage
@@ -119,16 +127,24 @@ tools/fake-portal/             fake Stalker portal + test streams for developmen
     Recently watched / first list / All tabs; Select watches, ▼ or Back hides, ⏪ last channel).
     The Live/Guide (TV) key opens the TV guide from anywhere.
   - ▶ shows the info banner.
-  - ⏪ goes to the previous channel. ⏩ opens Audio & subtitles.
+  - Live rewind on (default, Settings → Playback): ⏯ pauses for real, ⏪/⏩ move 30 s (presses add up, applied
+    after 600 ms), ⏩ at live opens Audio & subtitles. Off, or when it can't (no space): ⏪ previous channel,
+    ⏩ Audio & subtitles, ⏯ stops/resumes (released, not paused). The banner shows LIVE or "x behind live".
   - ☰ toggles favourite.
-  - ⏯ stops or resumes (live TV is released, not paused).
   - Back twice exits.
 - **Overlay.** Section pills on top (Home · Live · Guide · VOD · Radio · Search · Settings). Groups on the left:
-  Recently watched (`__recent`, kept in `ChannelRepository`; playing from it zaps through All), the user's
+  Football on now (`__football`: guide titles and event-channel names, refreshed on the minute tick), Recently
+  watched (`__recent`, kept in `ChannelRepository`; playing from it zaps through All), the user's
   favourites lists (★), pinned provider groups (★), then All, then the rest of the provider's groups (focus
   previews a group, debounced); channels on the right with what's on now. Select plays, ☰ opens "Add to list"
-  (☰ on a list renames/deletes it; ☰ on a provider group pins/unpins it: `pinned_groups` in `ProfileStore`,
-  ordered by `GroupOrder`, tested), ⏪⏩ jump 10 channels, Back closes. Footer: Refresh channels.
+  (☰ on a list renames/deletes it; ☰ on a provider group opens `GroupMenuDialog`: pin to top (`GroupOrder`,
+  tested) or hide (left out of the list, All channels and Football; Settings → Favourites shows them again);
+  both sets live in `AppContainer` + `ProfileStore`), ⏪⏩ jump 10 channels, Back closes. Footer: Refresh channels.
+- **Backup feeds.** A failure after the one automatic retry, or 12 s of buffering, moves to the channel's next
+  untried feed (`FeedMatcher`: same name without country/quality/backup labels, same group first) with a toast;
+  zapping or picking a channel starts afresh. Settings → Playback can turn it off.
+- **Reminders.** ☰ on a future programme in the guide toggles a reminder (⏰ in the grid); otherwise ☰ adds the
+  channel to a list. Checked on the minute tick: `ReminderDialog` (Watch now / Dismiss) a minute before.
 - **Favourites lists.** Any number of named lists; a channel can be in several. Group ids `__list:<id>`.
   Dialogs are `Dialog` windows, so focus stays inside them and Back closes them.
 - **Search.** Opens with the keyboard up; 300 ms debounce; local results first, the portal's VOD search
@@ -159,6 +175,8 @@ tools/fake-portal/             fake Stalker portal + test streams for developmen
 - **Speed.** The portal token is kept between launches (no handshake before the first channel; an expired
   one is renewed once). Playback starts after 500 ms of media. `baseline-prof.txt` pre-compiles app code.
   The info banner shows "Tuned in x.x s" (logcat `HindsPerf` also logs start-to-first-frame).
+- **Frame rate.** `FrameRateMatcher` switches the TV to the refresh rate matching the video (25/50 fps → 50 Hz)
+  through `preferredDisplayModeId` (Fire OS 8 has no `setFrameRate` that forces HDMI changes). Settings → Playback.
 - **Self-update** (`update/`). `Updater` checks GitHub's `releases/latest` 5 s after launch and on return to
   the app (at most every 6 h); a newer `versionCode` (the tag's last number, `ReleaseInfo`, tested) shows
   `UpdateDialog`. Update now streams `hinds-tv.apk` into a `PackageInstaller` session; `InstallResultReceiver`

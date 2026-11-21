@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -81,6 +82,7 @@ fun ChannelListOverlay(vm: AppViewModel, onNavigate: (NavSection) -> Unit) {
     val sync by vm.sync.collectAsStateWithLifecycle()
     val onAir by vm.onAir.collectAsStateWithLifecycle()
     val minute by vm.minute.collectAsStateWithLifecycle()
+    val groupMenu by vm.groupMenu.collectAsStateWithLifecycle()
 
     Box(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxHeight()) {
@@ -94,7 +96,8 @@ fun ChannelListOverlay(vm: AppViewModel, onNavigate: (NavSection) -> Unit) {
                         onFocused = vm::onGenreFocused,
                         onSelected = vm::selectGenre,
                         onEditList = vm::editList,
-                        onTogglePin = vm::togglePinGroup,
+                        onGroupMenu = vm::openGroupMenu,
+                        menuOpen = groupMenu != null,
                         onRefresh = vm::refreshChannels,
                     )
                     val list = genreChannels?.takeIf { it.genreId == selectedGenre }
@@ -138,17 +141,32 @@ private fun GenreColumn(
     onFocused: (String) -> Unit,
     onSelected: (String) -> Unit,
     onEditList: (Long) -> Unit,
-    onTogglePin: (String) -> Unit,
+    onGroupMenu: (String) -> Unit,
+    menuOpen: Boolean,
     onRefresh: () -> Unit,
 ) {
     val listState = rememberLazyListState()
-    // A group that was just pinned or unpinned moves; keep it (and its focus) on screen.
-    var movedGroup by remember { mutableStateOf<String?>(null) }
+    // A group that was just pinned moves, a hidden one goes: keep focus on it, or where it was.
+    var menuGroup by remember { mutableStateOf<Pair<String, Int>?>(null) }
+    var refocusIndex by remember { mutableStateOf<Int?>(null) }
+    val refocus = remember { FocusRequester() }
+    // Closed without a change (Cancel/Back): forget it, so a later list update doesn't move focus.
+    LaunchedEffect(menuOpen) {
+        if (!menuOpen) {
+            delay(500)
+            menuGroup = null
+        }
+    }
     LaunchedEffect(genres) {
-        val id = movedGroup ?: return@LaunchedEffect
-        movedGroup = null
-        val position = lazyIndexOf(genres, id)
-        if (position >= 0) listState.scrollToItem((position - 3).coerceAtLeast(0))
+        val (id, oldIndex) = menuGroup ?: return@LaunchedEffect
+        val index = genres.indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: oldIndex.coerceAtMost(genres.lastIndex)
+        if (index < 0) return@LaunchedEffect
+        menuGroup = null
+        listState.scrollToItem((lazyIndexOf(genres, genres[index].id) - 3).coerceAtLeast(0))
+        refocusIndex = index
+        withFrameNanos { }
+        runCatching { refocus.requestFocus() }
+        refocusIndex = null
     }
     Column(Modifier.padding(start = 28.dp).width(260.dp).fillMaxHeight()) {
         Text(
@@ -182,6 +200,7 @@ private fun GenreColumn(
                         selected = genre.id == selectedGenre,
                         onClick = { onSelected(genre.id) },
                         modifier = Modifier
+                            .then(if (refocusIndex == index) Modifier.focusRequester(refocus) else Modifier)
                             .onFocusChanged { if (it.isFocused) onFocused(genre.id) }
                             .onKeyEvent {
                                 if (it.type != KeyEventType.KeyDown || it.nativeKeyEvent.keyCode != KeyEvent.KEYCODE_MENU) {
@@ -191,8 +210,8 @@ private fun GenreColumn(
                                 when {
                                     listId != null -> onEditList(listId)
                                     genre.kind == GroupKind.Provider -> {
-                                        movedGroup = genre.id
-                                        onTogglePin(genre.id)
+                                        menuGroup = genre.id to index
+                                        onGroupMenu(genre.id)
                                     }
                                     else -> return@onKeyEvent false
                                 }
@@ -235,6 +254,7 @@ private fun GroupRow(genre: GenreItem, selected: Boolean, onClick: () -> Unit, m
         ) {
             when (genre.kind) {
                 GroupKind.Recent -> Text("↺", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                GroupKind.Football -> Text("⚽", fontSize = 12.sp)
                 GroupKind.List -> Text("★", fontSize = 13.sp, color = if (focused) HindsColors.OnFocus else HindsColors.Accent)
                 else -> if (genre.pinned) Text("★", fontSize = 13.sp, color = if (focused) HindsColors.OnFocus else HindsColors.Accent)
             }
@@ -249,7 +269,7 @@ private fun GroupRow(genre: GenreItem, selected: Boolean, onClick: () -> Unit, m
             // Provider groups have no count; the focused one says what ☰ does instead.
             if (focused && genre.kind == GroupKind.Provider) {
                 Text(
-                    stringResource(if (genre.pinned) R.string.hint_group_unpin else R.string.hint_group_pin),
+                    stringResource(R.string.hint_group_menu),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = HindsColors.OnFocus.copy(alpha = 0.7f),
