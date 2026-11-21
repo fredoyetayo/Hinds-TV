@@ -1,5 +1,8 @@
 package com.hindstv.ui.components
 
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.layout.Box
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -58,7 +61,17 @@ fun TvTextField(
     var editing by remember { mutableStateOf(startEditing) }
     var restoreFocus by remember { mutableStateOf(false) }
     val buttonFocus = remember { FocusRequester() }
+    // While the button turns into the field (and back), neither exists for a frame. Focus waits on
+    // this wrapper meanwhile; otherwise it falls to the first focusable on screen (e.g. the
+    // Settings rail, which then switches section).
+    val holder = remember { FocusRequester() }
+    var holding by remember { mutableStateOf(false) }
+    fun hold() {
+        holding = true
+        runCatching { holder.requestFocus() }
+    }
 
+    Box(modifier.focusRequester(holder).focusProperties { canFocus = holding }.focusable()) {
     if (editing) {
         val fieldFocus = remember { FocusRequester() }
         val keyboard = LocalSoftwareKeyboardController.current
@@ -66,12 +79,13 @@ fun TvTextField(
         var hadFocus by remember { mutableStateOf(false) }
         fun finish(returnFocus: Boolean) {
             keyboard?.hide()
+            if (returnFocus) hold()
             editing = false
             restoreFocus = returnFocus
         }
         BackHandler { finish(returnFocus = true) }
 
-        Column(modifier) {
+        Column {
             Text(label, style = MaterialTheme.typography.labelMedium, color = HindsColors.Accent)
             BasicTextField(
                 value = fieldValue,
@@ -106,13 +120,17 @@ fun TvTextField(
         }
         LaunchedEffect(Unit) {
             runCatching { fieldFocus.requestFocus() }
+            holding = false
             keyboard?.show()
         }
     } else {
         Surface(
-            onClick = { editing = true },
+            onClick = {
+                hold()
+                editing = true
+            },
             enabled = enabled,
-            modifier = modifier.focusRequester(buttonFocus),
+            modifier = Modifier.fillMaxWidth().focusRequester(buttonFocus),
             shape = ClickableSurfaceDefaults.shape(FieldShape),
             scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
             colors = HindsStyle.surfaceColors(),
@@ -131,7 +149,9 @@ fun TvTextField(
             if (restoreFocus) {
                 restoreFocus = false
                 runCatching { buttonFocus.requestFocus() }
+                holding = false
             }
         }
+    }
     }
 }
