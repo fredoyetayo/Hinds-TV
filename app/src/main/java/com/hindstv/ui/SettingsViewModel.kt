@@ -18,7 +18,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-enum class SettingsSection { Appearance, Account, Favourites, Playback, History, Diagnostics, About }
+enum class SettingsSection { Appearance, Account, Favourites, Playback, HomeAssistant, History, Diagnostics, About }
+
+/** Settings → Home Assistant: the hub's address, whether it answers, recordings. */
+data class HubUi(
+    val url: String,
+    val checking: Boolean = false,
+    val status: com.hindstv.hub.HubStatus? = null,
+    val error: String? = null,
+    val message: String? = null,
+)
 
 /** The account as shown in Settings. Identifiers are masked: the screen may end up in a photo. */
 data class AccountUi(
@@ -148,6 +157,75 @@ class SettingsViewModel(app: HindsApp) : ViewModel() {
         val updated = container.hiddenGroups.value - groupId
         store.hiddenGroupIds = updated
         container.hiddenGroups.value = updated
+    }
+
+    private val _hub = MutableStateFlow(HubUi(store.hubUrl.orEmpty()))
+    val hub: StateFlow<HubUi> = _hub.asStateFlow()
+
+    fun setHubUrl(url: String) {
+        val clean = url.trim().let { if (it.isNotEmpty() && "://" !in it) "http://$it" else it }
+            .let { if (it.isNotEmpty() && Regex(""":\d+/?$""").find(it.substringAfter("://")) == null) it.trimEnd('/') + ":8642" else it }
+        store.hubUrl = clean
+        _hub.value = HubUi(clean)
+        checkHub()
+    }
+
+    fun checkHub() {
+        if (!container.hub.configured) return
+        _hub.value = _hub.value.copy(checking = true, error = null)
+        viewModelScope.launch {
+            _hub.value = try {
+                _hub.value.copy(checking = false, status = container.hub.status(), error = null)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _hub.value.copy(checking = false, status = null, error = Errors.describe(e))
+            }
+        }
+    }
+
+    /**
+     * The owner chose to let Home Assistant start recordings itself: send it the portal details
+     * (only to the hub address shown on screen, on the home network).
+     */
+    fun allowHubRecording(done: String) {
+        val portal = (store.profile as? com.hindstv.data.source.SourceProfile.Stalker)?.portal ?: return
+        val endpoint = store.endpoint ?: return
+        viewModelScope.launch {
+            try {
+                container.hub.sendPortal(
+                    com.hindstv.hub.HubPortal(
+                        endpoint, portal.mac, portal.stbType, portal.serialNumber, portal.deviceId, portal.deviceId2,
+                        portal.signature, portal.timezone, portal.userAgent,
+                    ),
+                )
+                _hub.value = _hub.value.copy(message = done)
+                checkHub()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _hub.value = _hub.value.copy(error = Errors.describe(e))
+            }
+        }
+    }
+
+    fun forgetHubPortal() = hubAction { container.hub.forgetPortal() }
+
+    fun cancelScheduled(id: String) = hubAction { container.hub.cancelScheduled(id) }
+
+    fun stopHubRecording() = hubAction { container.hub.stopRecording() }
+
+    private fun hubAction(block: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                block()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _hub.value = _hub.value.copy(error = Errors.describe(e))
+            }
+            checkHub()
+        }
     }
 
     fun setInvertUpDown(invert: Boolean) {

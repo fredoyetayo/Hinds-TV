@@ -5,6 +5,7 @@ import com.hindstv.data.db.ChannelEntity
 import com.hindstv.data.db.ChannelName
 import com.hindstv.live.FeedMatcher
 import com.hindstv.live.FootballMatcher
+import com.hindstv.live.MatchFinder
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import com.hindstv.data.db.ChannelRow
@@ -75,6 +76,18 @@ class ChannelRepository(
         val ids = (fromGuide + fromNames).distinct()
         if (ids != footballIds.value) footballIds.value = ids
     }
+
+    /** The channel showing a match at [atSec]: a guide title with both teams, else an event channel. */
+    suspend fun findMatchChannel(home: String, away: String, atSec: Long): ChannelRow? {
+        val all = names()
+        val hidden = hiddenGroups.value
+        val airing = epgDao.airingAt(atSec).map { MatchFinder.Airing(it.channelId, it.title) }
+        val named = all.filter { it.genreId !in hidden }.map { MatchFinder.Airing(it.id, it.name) }
+        return MatchFinder.find(home, away, airing, named)?.let { dao.channelRow(it) }
+    }
+
+    /** The portal command for a channel (for recordings the hub starts later). */
+    suspend fun channelCmd(channelId: String): String? = dao.cmd(channelId)
 
     // --- Other feeds of a channel ----------------------------------------------------------------
 

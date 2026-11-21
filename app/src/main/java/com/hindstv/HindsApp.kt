@@ -8,6 +8,7 @@ import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.hindstv.core.Http
+import com.hindstv.R
 import com.hindstv.data.ChannelRepository
 import com.hindstv.data.MediaRepository
 import com.hindstv.data.ProfileStore
@@ -20,6 +21,7 @@ import com.hindstv.data.stalker.StalkerClient
 import com.hindstv.player.PlayerEngine
 import com.hindstv.ui.TrackPicker
 import com.hindstv.ui.theme.ThemeMode
+import com.hindstv.hub.HubClient
 import com.hindstv.update.Updater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -56,8 +58,11 @@ class AppContainer(private val app: Application) {
     /** Provider groups pinned to the top / hidden, shared by the channel list and Settings. */
     val pinnedGroups by lazy { MutableStateFlow(profileStore.pinnedGroupIds) }
     val hiddenGroups by lazy { MutableStateFlow(profileStore.hiddenGroupIds) }
-    val media by lazy { MediaRepository(database.mediaDao()) { source() } }
+    val media by lazy { MediaRepository(database.mediaDao(), hub, app.getString(R.string.vod_recordings)) { source() } }
     val player by lazy { PlayerEngine(app, http) }
+
+    /** The Hinds Hub add-on on Home Assistant (match reminders, now playing, recordings). */
+    val hub by lazy { HubClient(http) { profileStore.hubUrl } }
     val trackPicker by lazy { TrackPicker(player) }
 
     /** Lives as long as the app: an update download carries on whichever screen is showing. */

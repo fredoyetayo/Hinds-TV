@@ -191,6 +191,7 @@ fun GuideOverlay(vm: AppViewModel, onNavigate: (NavSection) -> Unit) {
                                 focusedChannel?.let { vm.play(it, selectedGenre) }
                             // ☰ on a programme still to come sets a reminder; otherwise it adds the channel to a list.
                             KeyEvent.KEYCODE_MENU -> when {
+                                vm.hubConfigured && focusedChannel != null -> vm.openChannelMenu(focusedChannel, focused)
                                 focused != null && focused.start > minute -> vm.toggleReminder(focused)
                                 else -> focusedChannel?.let { vm.toggleFavorite(it.id) }
                             }

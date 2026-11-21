@@ -114,6 +114,11 @@ class ProfileStore(context: Context) {
         get() = prefs.getStringSet(KEY_HIDDEN_GROUPS, null)?.toSet().orEmpty()
         set(value) = prefs.edit { putStringSet(KEY_HIDDEN_GROUPS, value) }
 
+    /** The Hinds Hub add-on on Home Assistant, e.g. `http://192.168.1.164:8642`; null when not set up. */
+    var hubUrl: String?
+        get() = prefs.getString(KEY_HUB_URL, null)?.takeIf { it.isNotBlank() }
+        set(value) = prefs.edit { putString(KEY_HUB_URL, value?.trim()?.takeIf { it.isNotEmpty() }) }
+
     /** Guide reminders, encoded by `Reminder.encode`. */
     var reminders: String?
         get() = prefs.getString(KEY_REMINDERS, null)
@@ -182,6 +187,7 @@ class ProfileStore(context: Context) {
         const val KEY_PINNED_GROUPS = "pinned_groups"
         const val KEY_HIDDEN_GROUPS = "hidden_groups"
         const val KEY_REMINDERS = "reminders"
+        const val KEY_HUB_URL = "hub_url"
         const val KEY_LIVE_REWIND = "live_rewind"
         const val KEY_BACKUP_FEEDS = "backup_feeds"
         const val KEY_MATCH_FRAME_RATE = "match_frame_rate"

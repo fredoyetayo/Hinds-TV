@@ -41,7 +41,8 @@ are mostly school lessons) with Netflix-style resume, and **Radio**.
    - The setup screen may *generate* one fresh random `00:1A:79` MAC for the user to register with their own
      provider (as STB Emu does). It's shown to the user and never auto-tried against other portals.
 6. **Never log or commit credentials.** That covers portal URLs, MACs and tokens. The owner's portal details
-   live only on the TV.
+   live on the TV, and on his own Home Assistant hub only after he presses "Allow recording ahead"
+   (Settings → Home Assistant), which sends them to the hub address shown there. Nowhere else.
 
 ## Architecture (single-activity Compose app, manual DI)
 
@@ -105,6 +106,11 @@ app/src/main/java/com/hindstv/
   ui/theme/Theme.kt            HindsPalette: Dark ("Cinema", gold accent) and Light ("Daylight", blue accent) via
                                LocalHindsPalette; HindsColors.* are @Composable getters. Manrope type, focus styling
   ui/theme/ThemeMode.kt        Dark | Light | Auto (Light 07:00–19:00, re-checked on the minute tick; pure, tested)
+  hub/HubClient.kt             the Hinds Hub add-on's HTTP API (fixtures, now playing, recordings, schedule, portal)
+hinds_hub/                     Home Assistant add-on (Python, stdlib + ffmpeg): ESPN fixtures → sensor.hinds_football,
+                               hinds_match_soon / hinds_kickoff events, sensor.hinds_now_playing, recorder to
+                               /media/hinds (now or scheduled; minimal Stalker client for scheduled ones), port 8642.
+                               repository.yaml at the repo root makes this repo an add-on repository.
 ffmpeg-audio/                  Media3 FFmpeg *audio* decoder (MP2/AC3/E-AC3/DTS/TrueHD), prebuilt LGPL .so
 tools/fake-portal/             fake Stalker portal + test streams for development without a subscription
 ```
@@ -175,6 +181,14 @@ tools/fake-portal/             fake Stalker portal + test streams for developmen
 - **Speed.** The portal token is kept between launches (no handshake before the first channel; an expired
   one is renewed once). Playback starts after 500 ms of media. `baseline-prof.txt` pre-compiles app code.
   The info banner shows "Tuned in x.x s" (logcat `HindsPerf` also logs start-to-first-frame).
+- **Home Assistant** (when a hub address is set). Polls the hub every 30 s (status) and 10 min (fixtures):
+  `MatchAlertDialog` 30 min before and at kick-off for followed teams; Watch now finds the channel
+  (`MatchFinder`: guide titles naming both teams, else event-channel names, else Football on now). Reports
+  what's playing. ☰ (full screen, guide) opens `ChannelMenuDialog`: record now / record later / stop, remind,
+  add to list. Record now: the TV stops its stream, the hub records (portal link, or a fresh link from the
+  TV), and the TV plays the hub's growing file (`/recordings/<id>.ts?from=end`). Changing channel while the
+  hub records asks first (`RecordConflictDialog`). Recordings appear as a VOD category. Deep links:
+  `hindstv://watch?channel=…`, `hindstv://football`, `hindstv://hub?url=…`.
 - **Frame rate.** `FrameRateMatcher` switches the TV to the refresh rate matching the video (25/50 fps → 50 Hz)
   through `preferredDisplayModeId` (Fire OS 8 has no `setFrameRate` that forces HDMI changes). Settings → Playback.
 - **Self-update** (`update/`). `Updater` checks GitHub's `releases/latest` 5 s after launch and on return to

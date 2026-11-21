@@ -172,3 +172,80 @@ fun ReminderDialog(due: com.hindstv.ui.DueReminder, onWatch: () -> Unit, onDismi
     }
     LaunchedEffect(Unit) { firstFocus.requestFocusSoon() }
 }
+
+/** One of the followed teams is about to play (or has kicked off): watch it now. */
+@Composable
+fun MatchAlertDialog(alert: com.hindstv.ui.MatchAlertUi, onWatch: () -> Unit, onDismiss: () -> Unit) {
+    val firstFocus = remember { FocusRequester() }
+    val m = alert.match
+    Dialog(onDismissRequest = onDismiss) {
+        DialogPanel {
+            Text(
+                stringResource(if (alert.kickingOff) R.string.match_kicking_off else R.string.match_soon, m.kickoffLocal),
+                style = MaterialTheme.typography.labelMedium,
+                color = HindsColors.Accent,
+            )
+            Text(m.title, style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (m.competition.isNotBlank()) Text(m.competition, color = HindsColors.Muted, maxLines = 1)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                PillButton(stringResource(R.string.reminder_watch), onClick = onWatch, primary = true, modifier = Modifier.focusRequester(firstFocus))
+                PillButton(stringResource(R.string.reminder_dismiss), onClick = onDismiss)
+            }
+        }
+    }
+    LaunchedEffect(Unit) { firstFocus.requestFocusSoon() }
+}
+
+/** ☰ with Home Assistant set up: lists, reminders and recording for a channel or programme. */
+@Composable
+fun ChannelMenuDialog(
+    menu: com.hindstv.ui.ChannelMenuUi,
+    onAddToList: () -> Unit,
+    onRemind: () -> Unit,
+    onRecordNow: () -> Unit,
+    onRecordLater: () -> Unit,
+    onStopRecording: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val firstFocus = remember { FocusRequester() }
+    Dialog(onDismissRequest = onClose) {
+        DialogPanel {
+            Text(menu.channel.name.uppercase(), style = MaterialTheme.typography.labelMedium, color = HindsColors.Accent, maxLines = 1)
+            Text(
+                menu.programme?.title ?: menu.channel.name,
+                style = MaterialTheme.typography.headlineSmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            val first = Modifier.focusRequester(firstFocus)
+            when {
+                menu.recordingThis -> PillButton(stringResource(R.string.menu_stop_recording), onClick = onStopRecording, primary = true, modifier = first)
+                menu.future -> PillButton(stringResource(R.string.menu_record_later), onClick = onRecordLater, primary = true, modifier = first)
+                else -> PillButton(stringResource(R.string.menu_record_now), onClick = onRecordNow, primary = true, modifier = first)
+            }
+            if (menu.future) PillButton(stringResource(R.string.menu_remind), onClick = onRemind)
+            PillButton(stringResource(R.string.menu_add_to_list), onClick = onAddToList)
+            Text(stringResource(R.string.menu_record_hint), style = MaterialTheme.typography.bodySmall, color = HindsColors.Muted)
+            PillButton(stringResource(R.string.cancel), onClick = onClose)
+        }
+    }
+    LaunchedEffect(Unit) { firstFocus.requestFocusSoon() }
+}
+
+/** Changing channel would stop the Home Assistant recording: the provider allows one stream. */
+@Composable
+fun RecordConflictDialog(conflict: com.hindstv.ui.RecordConflictUi, onStopAndWatch: () -> Unit, onKeep: () -> Unit) {
+    val firstFocus = remember { FocusRequester() }
+    Dialog(onDismissRequest = onKeep) {
+        DialogPanel {
+            Text(stringResource(R.string.conflict_title), style = MaterialTheme.typography.labelMedium, color = HindsColors.Accent)
+            Text(conflict.recording, style = MaterialTheme.typography.headlineSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(stringResource(R.string.conflict_text, conflict.channel.name), color = HindsColors.Muted)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                PillButton(stringResource(R.string.conflict_keep), onClick = onKeep, primary = true, modifier = Modifier.focusRequester(firstFocus))
+                PillButton(stringResource(R.string.conflict_stop), onClick = onStopAndWatch)
+            }
+        }
+    }
+    LaunchedEffect(Unit) { firstFocus.requestFocusSoon() }
+}

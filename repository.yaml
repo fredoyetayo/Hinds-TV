@@ -1,0 +1,5 @@
+# Home Assistant add-on repository: add https://github.com/fredoyetayo/Hinds-TV in
+# Settings → Add-ons → Add-on store → ⋮ → Repositories. The add-on lives in hinds_hub/.
+name: Hinds TV
+url: https://github.com/fredoyetayo/Hinds-TV
+maintainer: Fred Oyetayo

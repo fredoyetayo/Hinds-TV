@@ -18,20 +18,49 @@ import kotlinx.coroutines.flow.Flow
  * Videos, radio and resume positions. Portals are browsed online (their libraries can be huge);
  * playlists were stored by [ChannelRepository.sync]. Resume positions are always local.
  */
+/** The VOD category holding Home Assistant recordings. */
+const val RECORDINGS = "__hub_recordings"
+
 class MediaRepository(
     private val dao: MediaDao,
+    private val hub: com.hindstv.hub.HubClient? = null,
+    private val recordingsTitle: String = "Recordings",
     private val source: () -> ChannelSource,
 ) {
     suspend fun videoCategories(): List<VideoCategory> {
         val active = source()
-        return if (active.hasOnlineVideos) {
+        val provider = if (active.hasOnlineVideos) {
             active.videoCategories()
         } else {
             dao.videoCategories().map { VideoCategory(it.id, it.title) }
         }
+        // Home Assistant recordings sit first among the categories when the hub is set up.
+        return if (hub?.configured == true) listOf(VideoCategory(RECORDINGS, recordingsTitle)) + provider else provider
+    }
+
+    /** Recordings on the Home Assistant hub, newest first, as videos (played straight from the hub). */
+    private suspend fun recordings(search: String): VideoPage {
+        val client = hub ?: return VideoPage(emptyList(), false)
+        val format = java.text.SimpleDateFormat("EEE d MMM, HH:mm", java.util.Locale.UK)
+        val items = client.recordings()
+            .filter { search.isBlank() || it.title.contains(search, ignoreCase = true) }
+            .mapNotNull { r ->
+                val url = client.recordingUrl(r.id) ?: return@mapNotNull null
+                VideoItem(
+                    id = "hub:" + r.id,
+                    categoryId = RECORDINGS,
+                    title = r.title,
+                    description = listOf(r.channel, format.format(java.util.Date(r.start * 1000)), if (r.recording) "Recording now" else null)
+                        .filterNot { it.isNullOrBlank() }.joinToString(" · "),
+                    durationMin = (r.durationS / 60).toInt(),
+                    cmd = url,
+                )
+            }
+        return VideoPage(items, hasMore = false)
     }
 
     suspend fun videoPage(categoryId: String, page: Int, sort: VideoSort = VideoSort.Newest, search: String = ""): VideoPage {
+        if (categoryId == RECORDINGS) return if (page == 1) recordings(search) else VideoPage(emptyList(), false)
         val active = source()
         if (active.hasOnlineVideos) return active.videoPage(categoryId, page, sort, search)
         val rows = dao.videos(
@@ -50,7 +79,7 @@ class MediaRepository(
     }
 
     suspend fun videoUrl(item: VideoItem, episode: VideoEpisode?): String =
-        source().videoUrl(episode?.cmd ?: item.cmd, episode?.series)
+        if (item.categoryId == RECORDINGS) item.cmd else source().videoUrl(episode?.cmd ?: item.cmd, episode?.series)
 
     suspend fun searchVideos(query: String, limit: Int = 40): List<VideoItem> {
         val active = source()

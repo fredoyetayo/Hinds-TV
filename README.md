@@ -37,6 +37,12 @@ Hinds TV appears under **Apps** (Recent / My Library).
 Press ☰ on any group to pin it to the top or hide it. ⏯ pauses live TV and ◀◀ ▶▶ jump 30 seconds (Settings →
 Playback). In the guide, ☰ on a programme still to come sets a reminder.
 
+**Home Assistant:** add this repository in Home Assistant (Settings → Add-ons → Add-on store → ⋮ →
+Repositories → `https://github.com/fredoyetayo/Hinds-TV`) and install **Hinds Hub**. Then in Hinds TV,
+Settings → Home Assistant, enter the box's address. You get reminders for your teams (Arsenal, Real Madrid and
+Man City by default; ESPN team ids in the add-on's options), what's playing on the kitchen screen, and
+recordings (☰ → Record), which show up under VOD → Recordings and in Home Assistant's Media.
+
 **Updates** after that are built in: when a new version is out, Hinds TV offers it when it opens. Press
 **Update now**, then **Install** on the Fire TV screen. The first time, Fire TV asks you to allow Hinds TV under
 **Install unknown apps**. Settings → About → **Check for updates** checks straight away. From a computer,

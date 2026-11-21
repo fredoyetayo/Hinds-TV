@@ -1,0 +1,31 @@
+name: Hinds Hub
+version: "0.1.0"
+slug: hinds_hub
+description: Match reminders, what's playing and recordings for Hinds TV
+url: https://github.com/fredoyetayo/Hinds-TV/tree/main/hinds_hub
+arch:
+  - amd64
+  - aarch64
+init: false
+startup: application
+boot: auto
+homeassistant_api: true
+ports:
+  8642/tcp: 8642
+ports_description:
+  8642/tcp: Hinds TV and the kitchen frame talk to the hub here
+map:
+  - type: media
+    read_only: false
+options:
+  teams:
+    - "359"
+    - "86"
+    - "382"
+  remind_minutes: 30
+  keep_days: 30
+schema:
+  teams:
+    - str
+  remind_minutes: int(5,240)
+  keep_days: int(1,365)

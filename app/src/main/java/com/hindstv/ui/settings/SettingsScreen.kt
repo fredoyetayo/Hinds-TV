@@ -53,6 +53,8 @@ import androidx.tv.material3.Text
 import coil3.compose.AsyncImage
 import com.hindstv.BuildConfig
 import com.hindstv.R
+import androidx.compose.ui.text.input.KeyboardType
+import com.hindstv.ui.components.TvTextField
 import com.hindstv.update.FailReason
 import com.hindstv.update.UpdateUi
 import com.hindstv.core.Diagnostics
@@ -132,6 +134,7 @@ fun SettingsScreen(
                     SettingsSection.Account -> AccountPane(vm, onChangeAccount, onRefreshChannels)
                     SettingsSection.Favourites -> FavouritesPane(vm, onEditList)
                     SettingsSection.Playback -> PlaybackPane(vm)
+                    SettingsSection.HomeAssistant -> HomeAssistantPane(vm)
                     SettingsSection.History -> HistoryPane(vm)
                     SettingsSection.Diagnostics -> DiagnosticsPane(vm)
                     SettingsSection.About -> AboutPane(vm)
@@ -149,6 +152,7 @@ private fun SettingsSection.label() = when (this) {
     SettingsSection.Account -> R.string.settings_account
     SettingsSection.Favourites -> R.string.settings_favourites
     SettingsSection.Playback -> R.string.settings_playback
+    SettingsSection.HomeAssistant -> R.string.settings_home_assistant
     SettingsSection.History -> R.string.settings_history
     SettingsSection.Diagnostics -> R.string.settings_diagnostics
     SettingsSection.About -> R.string.settings_about
@@ -458,6 +462,63 @@ private fun Toggle(@androidx.annotation.StringRes label: Int, @androidx.annotati
         primary = on,
     )
     Hint(stringResource(hint))
+}
+
+@Composable
+private fun HomeAssistantPane(vm: SettingsViewModel) {
+    val hub by vm.hub.collectAsStateWithLifecycle()
+    var address by remember { mutableStateOf(hub.url) }
+    LaunchedEffect(Unit) { vm.checkHub() }
+    Column(
+        Modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        PaneTitle(stringResource(R.string.settings_home_assistant))
+        Hint(stringResource(R.string.hub_hint))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            TvTextField(
+                label = stringResource(R.string.hub_address),
+                value = address,
+                onValueChange = { address = it },
+                placeholder = "192.168.1.164",
+                keyboardType = KeyboardType.Uri,
+                modifier = Modifier.weight(1f),
+            )
+            PillButton(stringResource(R.string.save), onClick = { vm.setHubUrl(address) }, primary = true)
+        }
+        val status = hub.status
+        when {
+            hub.url.isEmpty() -> Unit
+            hub.checking -> Hint(stringResource(R.string.hub_checking))
+            status != null -> Hint(stringResource(R.string.hub_connected, status.version), color = HindsColors.Accent)
+            hub.error != null -> Hint(stringResource(R.string.hub_unreachable, hub.error.orEmpty()), color = HindsColors.Error)
+        }
+        if (status != null) {
+            status.recording?.let { rec ->
+                Text(stringResource(R.string.hub_recording_now, rec.title), style = MaterialTheme.typography.titleMedium)
+                PillButton(stringResource(R.string.menu_stop_recording), onClick = vm::stopHubRecording)
+            }
+            Text(stringResource(R.string.hub_record_ahead), style = MaterialTheme.typography.titleMedium)
+            Hint(stringResource(if (status.portal) R.string.hub_record_ahead_on else R.string.hub_record_ahead_hint))
+            val done = stringResource(R.string.hub_record_ahead_done)
+            if (status.portal) {
+                PillButton(stringResource(R.string.hub_record_ahead_forget), onClick = vm::forgetHubPortal)
+            } else {
+                PillButton(stringResource(R.string.hub_record_ahead_allow), onClick = { vm.allowHubRecording(done) }, primary = true)
+            }
+            if (status.schedule.isNotEmpty()) {
+                Text(stringResource(R.string.hub_scheduled), style = MaterialTheme.typography.titleMedium)
+                val format = remember { SimpleDateFormat("EEE d MMM, HH:mm", Locale.UK) }
+                status.schedule.forEach { s ->
+                    PillButton(
+                        stringResource(R.string.hub_cancel_scheduled, s.title, format.format(Date(s.start * 1000))),
+                        onClick = { vm.cancelScheduled(s.id) },
+                    )
+                }
+            }
+        }
+        hub.message?.let { Hint(it, color = HindsColors.Accent) }
+    }
 }
 
 @Composable

@@ -19,6 +19,8 @@ import com.hindstv.data.source.SourceProfile
 import com.hindstv.data.stalker.Mac
 import com.hindstv.data.stalker.PortalProfile
 import com.hindstv.data.stalker.StalkerClient
+import com.hindstv.hub.HubMatch
+import com.hindstv.hub.HubStatus
 import com.hindstv.live.Reminder
 import com.hindstv.player.ZapController
 import kotlinx.coroutines.CancellationException
@@ -81,6 +83,21 @@ data class GroupMenuUi(val groupId: String, val title: String, val pinned: Boole
 
 /** Live pause/rewind state for the banner: how far behind live, and whether it is paused. */
 data class TimeshiftUi(val behindMs: Long, val paused: Boolean, val pendingSkipMs: Long = 0)
+
+/** One of the followed teams is about to play ([kickingOff] once it has started). */
+data class MatchAlertUi(val match: HubMatch, val kickingOff: Boolean)
+
+/** ☰ on a channel (full screen) or a programme (guide) when Home Assistant is set up. */
+data class ChannelMenuUi(
+    val channel: ChannelRow,
+    val programme: ProgrammeEntity?,
+    /** The programme hasn't started: offer a reminder and a scheduled recording. */
+    val future: Boolean,
+    val recordingThis: Boolean,
+)
+
+/** Changing channel would stop the Home Assistant recording (one stream per account). */
+data class RecordConflictUi(val recording: String, val channel: ChannelRow, val group: String?)
 
 /** A reminder that is due: the programme and its channel. */
 data class DueReminder(val reminder: Reminder, val channel: ChannelRow)
@@ -249,6 +266,30 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
     private val _dueReminder = MutableStateFlow<DueReminder?>(null)
     val dueReminder: StateFlow<DueReminder?> = _dueReminder.asStateFlow()
 
+    // --- Home Assistant (Hinds Hub) ----------------------------------------------------------------
+
+    private val hub = container.hub
+
+    /** Home Assistant is set up: ☰ menus offer recording. */
+    val hubConfigured: Boolean get() = hub.configured
+
+    private val _hubStatus = MutableStateFlow<HubStatus?>(null)
+    val hubStatus: StateFlow<HubStatus?> = _hubStatus.asStateFlow()
+
+    private val _matchAlert = MutableStateFlow<MatchAlertUi?>(null)
+    val matchAlert: StateFlow<MatchAlertUi?> = _matchAlert.asStateFlow()
+
+    private val _channelMenu = MutableStateFlow<ChannelMenuUi?>(null)
+    val channelMenu: StateFlow<ChannelMenuUi?> = _channelMenu.asStateFlow()
+
+    private val _recordConflict = MutableStateFlow<RecordConflictUi?>(null)
+    val recordConflict: StateFlow<RecordConflictUi?> = _recordConflict.asStateFlow()
+
+    private val alertsShown = mutableSetOf<String>()
+    private var fixturesAt = 0L
+    private var fixtures: List<HubMatch> = emptyList()
+    private var reportedChannel: String? = null
+
     private val _toast = MutableStateFlow<String?>(null)
     val toast: StateFlow<String?> = _toast.asStateFlow()
 
@@ -339,6 +380,18 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
                     autoRetries = 0
                     stallJob?.cancel()
                     setStatus(PlayStatus.Playing)
+                    reportNowPlaying(playing = true)
+                }
+                Player.STATE_ENDED -> {
+                    // A live stream only "ends" when its source does (e.g. a hub recording finished): go live again.
+                    stallJob?.cancel()
+                    val channel = _playback.value.channel ?: return
+                    retryJob?.cancel()
+                    retryJob = viewModelScope.launch {
+                        delay(1_000)
+                        _hubStatus.value = runCatching { hub.status() }.getOrNull() ?: _hubStatus.value?.copy(recording = null)
+                        if (_playback.value.channel?.id == channel.id) tune(channel, isRetry = true)
+                    }
                 }
                 else -> stallJob?.cancel()
             }
@@ -399,6 +452,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
                 checkReminders(now)
             }
         }
+        viewModelScope.launch { pollHub() }
         if (store.profile != null) {
             engine.setUserAgent(container.source().userAgent)
             viewModelScope.launch { startup() }
@@ -452,6 +506,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         val playback = _playback.value
         if (playback.channel != null && playback.status != PlayStatus.Stopped) resumeOnForeground = true
         engine.stop()
+        reportNowPlaying(playing = false)
     }
 
     // --- Remote ----------------------------------------------------------------------------------
@@ -477,7 +532,9 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
             RemoteAction.ShowInfo -> showBanner()
             RemoteAction.OpenRecent -> openRecent()
             RemoteAction.Recall -> if (engine.canTimeshift && engine.owner === this) skip(-SKIP_MS) else recall()
-            RemoteAction.ToggleFavorite -> _playback.value.channel?.let { toggleFavorite(it.id) }
+            RemoteAction.ToggleFavorite -> _playback.value.channel?.let { channel ->
+                if (hub.configured) openChannelMenu(channel, nowNext.value.firstOrNull { it.start <= System.currentTimeMillis() / 1000 }) else toggleFavorite(channel.id)
+            }
             RemoteAction.PlayPause -> togglePlayPause()
             RemoteAction.Back -> Unit // handled by onBackInFullscreen
         }
@@ -569,6 +626,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
     }
 
     fun play(channel: ChannelRow, fromGenre: String) {
+        if (blockedByRecording(channel, fromGenre)) return
         resetFailover()
         // Recently watched reorders on every tune, so ▲/▼ would bounce between two channels: zap through All.
         val group = if (fromGenre == ChannelRepository.RECENT) ChannelRepository.ALL else fromGenre
@@ -703,8 +761,9 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         val currentId = _playback.value.channel?.id
         val index = list.indexOfFirst { it.id == currentId }.takeIf { it >= 0 }
             ?: list.indexOfFirst { it.id == failoverOrigin?.id }
-        resetFailover()
         val next = if (index < 0) list.first() else list[(index + delta).mod(list.size)]
+        if (blockedByRecording(next, null)) return
+        resetFailover()
         showChannel(next)
         zapper.request(next)
     }
@@ -726,7 +785,8 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         if (!isRetry) autoRetries = 0
         engine.stop() // close the previous stream first: providers allow one connection per account
         try {
-            val url = repo.streamUrl(channel.id)
+            // The channel Home Assistant is recording plays from the recording: the hub has the stream.
+            val url = recordingUrlFor(channel) ?: repo.streamUrl(channel.id)
             store.lastChannelId = channel.id
             repo.noteWatched(channel.id)
             engine.play(url, owner = this, timeshift = store.liveRewind)
@@ -870,6 +930,237 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         watch(due.channel)
     }
 
+    // --- Home Assistant ---------------------------------------------------------------------------
+
+    /**
+     * `hindstv://watch?channel=Sky Sports Premier League` (a name or channel id), `hindstv://football`
+     * (Football on now), `hindstv://hub?url=http://192.168.1.164:8642` (set the Home Assistant hub).
+     */
+    fun openLink(action: String, channel: String?, url: String?) {
+        when (action) {
+            "hub" -> url?.takeIf { it.startsWith("http://") || it.startsWith("https://") }?.let {
+                store.hubUrl = it
+                showToast(app.getString(R.string.hub_linked, it))
+            }
+            "football" -> {
+                openLive()
+                _selectedGenre.value = ChannelRepository.FOOTBALL
+                _overlay.value = Overlay.ChannelList
+            }
+            "watch" -> viewModelScope.launch {
+                val wanted = channel?.trim().orEmpty()
+                if (wanted.isEmpty()) return@launch
+                val match = repo.channel(wanted)
+                    ?: repo.searchChannels(wanted, 20).let { found -> found.firstOrNull { it.name.equals(wanted, ignoreCase = true) } ?: found.firstOrNull() }
+                if (match != null) watch(match) else showToast(app.getString(R.string.link_channel_not_found, wanted))
+            }
+        }
+    }
+
+    /** Keeps the hub's status (recordings) fresh and shows team match alerts. */
+    private suspend fun pollHub() {
+        while (true) {
+            if (hub.configured) {
+                try {
+                    _hubStatus.value = hub.status()
+                    val now = System.currentTimeMillis() / 1000
+                    if (now - fixturesAt >= FIXTURES_EVERY_S) {
+                        fixtures = hub.fixtures()
+                        fixturesAt = now
+                    }
+                    checkMatchAlerts(now)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    _hubStatus.value = null // not reachable right now; try again next time
+                }
+            }
+            delay(HUB_POLL_MS)
+        }
+    }
+
+    /** Half an hour before kick-off, then at kick-off: once each per match. */
+    private fun checkMatchAlerts(now: Long) {
+        if (_matchAlert.value != null || store.profile == null) return
+        for (m in fixtures) {
+            val soon = now >= m.kickoff - MATCH_LEAD_S && now < m.kickoff
+            val started = now >= m.kickoff && now < m.kickoff + KICKOFF_GRACE_S
+            val key = m.id + if (started) ":ko" else ":soon"
+            if ((soon || started) && alertsShown.add(key)) {
+                if (started) alertsShown += m.id + ":soon"
+                _matchAlert.value = MatchAlertUi(m, kickingOff = started)
+                return
+            }
+        }
+    }
+
+    fun dismissMatchAlert() {
+        _matchAlert.value = null
+    }
+
+    /** Watch now on a match alert: the channel whose guide (or name) shows the match, else Football on now. */
+    fun watchMatch() {
+        val alert = _matchAlert.value ?: return
+        _matchAlert.value = null
+        viewModelScope.launch {
+            val at = maxOf(System.currentTimeMillis() / 1000, alert.match.kickoff) + 10 * 60
+            val channel = repo.findMatchChannel(alert.match.home, alert.match.away, at)
+            if (channel != null) {
+                watch(channel, ChannelRepository.FOOTBALL)
+            } else {
+                openLive()
+                _selectedGenre.value = ChannelRepository.FOOTBALL
+                _overlay.value = Overlay.ChannelList
+                showToast(R.string.match_channel_not_found)
+            }
+        }
+    }
+
+    private fun reportNowPlaying(playing: Boolean) {
+        if (!hub.configured) return
+        val channel = _playback.value.channel?.name?.takeIf { playing }
+        if (channel == reportedChannel) return
+        reportedChannel = channel
+        val programme = nowNext.value.firstOrNull { it.start <= System.currentTimeMillis() / 1000 }?.title?.takeIf { playing }
+        viewModelScope.launch { runCatching { hub.nowPlaying(channel, programme, playing) } }
+    }
+
+    /** The hub's live recording of [channel], if that is what it is recording. */
+    private fun recordingUrlFor(channel: ChannelRow): String? {
+        val rec = _hubStatus.value?.recording?.takeIf { it.recording && it.channel == channel.name } ?: return null
+        return hub.recordingUrl(rec.id, fromEnd = true)
+    }
+
+    /** Another channel while the hub records: ask first, because it would stop the recording. */
+    private fun blockedByRecording(next: ChannelRow, group: String?): Boolean {
+        val rec = _hubStatus.value?.recording?.takeIf { it.recording } ?: return false
+        if (rec.channel == next.name) return false
+        _recordConflict.value = RecordConflictUi(rec.title, next, group)
+        return true
+    }
+
+    fun resolveRecordConflict(stopRecording: Boolean) {
+        val conflict = _recordConflict.value ?: return
+        _recordConflict.value = null
+        if (!stopRecording) return
+        viewModelScope.launch {
+            try {
+                hub.stopRecording()
+                delay(1_500) // let the hub close the provider stream
+                _hubStatus.value = _hubStatus.value?.copy(recording = null)
+                showToast(R.string.recording_stopped)
+                val group = conflict.group ?: zapGenre.value
+                play(conflict.channel, group)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                showToast(app.getString(R.string.hub_failed, Errors.describe(e)))
+            }
+        }
+    }
+
+    fun dismissRecordConflict() {
+        _recordConflict.value = null
+    }
+
+    fun openChannelMenu(channel: ChannelRow, programme: ProgrammeEntity?) {
+        val now = System.currentTimeMillis() / 1000
+        val rec = _hubStatus.value?.recording
+        _channelMenu.value = ChannelMenuUi(
+            channel = channel,
+            programme = programme,
+            future = programme != null && programme.start > now,
+            recordingThis = rec?.recording == true && rec.channel == channel.name,
+        )
+    }
+
+    fun closeChannelMenu() {
+        _channelMenu.value = null
+    }
+
+    fun menuAddToList() {
+        val menu = _channelMenu.value ?: return
+        _channelMenu.value = null
+        toggleFavorite(menu.channel.id)
+    }
+
+    fun menuRemind() {
+        val menu = _channelMenu.value ?: return
+        _channelMenu.value = null
+        menu.programme?.let(::toggleReminder)
+    }
+
+    /**
+     * Record now on Home Assistant. The provider allows one stream, so the TV lets go of it, the hub
+     * records, and the TV carries on from the hub's recording (pause and rewind still work).
+     */
+    fun menuRecordNow() {
+        val menu = _channelMenu.value ?: return
+        _channelMenu.value = null
+        val channel = menu.channel
+        viewModelScope.launch {
+            try {
+                val now = System.currentTimeMillis() / 1000
+                val stop = menu.programme?.stop?.takeIf { it > now + 300 } ?: (now + DEFAULT_RECORD_S)
+                val title = menu.programme?.title ?: channel.name
+                val cmd = repo.channelCmd(channel.id) ?: return@launch
+                val status = hub.status()
+                zapper.cancel()
+                if (engine.owner === this@AppViewModel) engine.stop()
+                val url = if (status.portal) null else repo.streamUrl(channel.id)
+                val rec = hub.record(cmd, channel.name, title, stop, url, container.source().userAgent)
+                _hubStatus.value = status.copy(recording = rec)
+                showToast(app.getString(R.string.recording_started, formatClock(stop)))
+                delay(RECORD_START_DELAY_MS) // a few seconds of recording before the TV follows it
+                if (_playback.value.channel?.id == channel.id || _playback.value.channel == null) {
+                    showChannel(channel)
+                    zapper.request(channel)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                showToast(app.getString(R.string.hub_failed, Errors.describe(e)))
+                _playback.value.channel?.let { zapper.request(it) }
+            }
+        }
+    }
+
+    /** Record later: the hub starts the stream itself at the programme's time. */
+    fun menuRecordLater() {
+        val menu = _channelMenu.value ?: return
+        _channelMenu.value = null
+        val programme = menu.programme ?: return
+        viewModelScope.launch {
+            try {
+                if (!hub.status().portal) {
+                    showToast(R.string.record_needs_permission)
+                    return@launch
+                }
+                val cmd = repo.channelCmd(menu.channel.id) ?: return@launch
+                hub.schedule(cmd, menu.channel.name, programme.title, programme.start - 120, programme.stop)
+                _hubStatus.value = runCatching { hub.status() }.getOrNull() ?: _hubStatus.value
+                showToast(app.getString(R.string.record_scheduled, programme.title))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                showToast(app.getString(R.string.hub_failed, Errors.describe(e)))
+            }
+        }
+    }
+
+    fun menuStopRecording() {
+        _channelMenu.value = null
+        viewModelScope.launch {
+            runCatching { hub.stopRecording() }
+                .onSuccess { showToast(R.string.recording_stopped) }
+                .onFailure { showToast(app.getString(R.string.hub_failed, Errors.describe(it))) }
+            _hubStatus.value = runCatching { hub.status() }.getOrNull()
+        }
+    }
+
+    private fun formatClock(sec: Long): String =
+        java.text.SimpleDateFormat("HH:mm", java.util.Locale.UK).format(java.util.Date(sec * 1000))
+
     // --- Group menu ------------------------------------------------------------------------------
 
     fun openGroupMenu(groupId: String) {
@@ -911,6 +1202,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
             zapper.cancel()
             engine.stop()
             setStatus(PlayStatus.Stopped)
+            reportNowPlaying(playing = false)
             showBanner()
         }
     }
@@ -986,6 +1278,7 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
         bannerJob?.cancel()
         zapper.cancel()
         if (engine.owner === this) engine.stop()
+        reportNowPlaying(playing = false)
         val playback = _playback.value
         if (playback.channel != null && playback.status != PlayStatus.Stopped) resumeOnForeground = true
     }
@@ -1108,6 +1401,12 @@ class AppViewModel(private val app: HindsApp) : ViewModel() {
 
     companion object {
         private const val MAX_AUTO_RETRIES = 1
+        private const val HUB_POLL_MS = 30_000L
+        private const val FIXTURES_EVERY_S = 10 * 60L
+        private const val MATCH_LEAD_S = 30 * 60L
+        private const val KICKOFF_GRACE_S = 10 * 60L
+        private const val DEFAULT_RECORD_S = 2 * 60 * 60L
+        private const val RECORD_START_DELAY_MS = 6_000L
         /** Buffering this long means the feed has stalled (backup feeds kick in). */
         private const val STALL_MS = 12_000L
         private const val SKIP_MS = 30_000L

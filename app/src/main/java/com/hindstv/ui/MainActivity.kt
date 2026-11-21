@@ -21,7 +21,10 @@ import com.hindstv.ui.search.SearchScreen
 import com.hindstv.ui.settings.SettingsScreen
 import com.hindstv.ui.setup.SetupScreen
 import com.hindstv.ui.theme.HindsTheme
+import com.hindstv.ui.tv.ChannelMenuDialog
 import com.hindstv.ui.tv.GroupMenuDialog
+import com.hindstv.ui.tv.MatchAlertDialog
+import com.hindstv.ui.tv.RecordConflictDialog
 import com.hindstv.ui.tv.ListEditDialog
 import com.hindstv.ui.tv.ReminderDialog
 import com.hindstv.ui.tv.ListPickerDialog
@@ -47,6 +50,20 @@ class MainActivity : ComponentActivity() {
             val light by vm.lightTheme.collectAsStateWithLifecycle()
             HindsTheme(light) { HindsRoot(vm, videoVm, radioVm, searchVm, settingsVm, (application as HindsApp).container.trackPicker) }
         }
+        handleLink(intent)
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        handleLink(intent)
+    }
+
+    /** Links from Home Assistant (over adb) or anything else on the TV: see [AppViewModel.openLink]. */
+    private fun handleLink(intent: android.content.Intent?) {
+        val uri = intent?.data?.takeIf { it.scheme == "hindstv" } ?: return
+        videoVm.onLeave()
+        radioVm.stop()
+        vm.openLink(uri.host.orEmpty(), uri.getQueryParameter("channel") ?: uri.getQueryParameter("id"), uri.getQueryParameter("url"))
     }
 
     override fun onStart() {
@@ -172,6 +189,34 @@ private fun HindsRoot(
     listEdit?.let { ListEditDialog(it, vm::renameList, vm::deleteList, vm::closeListEdit) }
     val groupMenu by vm.groupMenu.collectAsStateWithLifecycle()
     groupMenu?.let { GroupMenuDialog(it, vm::togglePinGroup, vm::hideGroup, vm::closeGroupMenu) }
+    val matchAlert by vm.matchAlert.collectAsStateWithLifecycle()
+    matchAlert?.let {
+        MatchAlertDialog(
+            it,
+            onWatch = {
+                videoVm.onLeave()
+                radioVm.stop()
+                vm.watchMatch()
+            },
+            onDismiss = vm::dismissMatchAlert,
+        )
+    }
+    val channelMenu by vm.channelMenu.collectAsStateWithLifecycle()
+    channelMenu?.let {
+        ChannelMenuDialog(
+            it,
+            onAddToList = vm::menuAddToList,
+            onRemind = vm::menuRemind,
+            onRecordNow = vm::menuRecordNow,
+            onRecordLater = vm::menuRecordLater,
+            onStopRecording = vm::menuStopRecording,
+            onClose = vm::closeChannelMenu,
+        )
+    }
+    val recordConflict by vm.recordConflict.collectAsStateWithLifecycle()
+    recordConflict?.let {
+        RecordConflictDialog(it, onStopAndWatch = { vm.resolveRecordConflict(stopRecording = true) }, onKeep = vm::dismissRecordConflict)
+    }
     val dueReminder by vm.dueReminder.collectAsStateWithLifecycle()
     dueReminder?.let {
         ReminderDialog(
