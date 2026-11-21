@@ -27,12 +27,20 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from zoneinfo import ZoneInfo
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 PORT = 8642
 DATA = os.environ.get("HUB_DATA", "/data")
 MEDIA = os.environ.get("HUB_MEDIA", "/media/hinds")
 SUPERVISOR = "http://supervisor/core/api"
-TOKEN = os.environ.get("SUPERVISOR_TOKEN", "")
+TOKEN = os.environ.get("SUPERVISOR_TOKEN") or os.environ.get("HASSIO_TOKEN") or ""
+if not TOKEN:
+    # Without init the container env may lack it; the s6 base image keeps a copy here.
+    try:
+        with open("/run/s6/container_environment/SUPERVISOR_TOKEN") as _f:
+            TOKEN = _f.read().strip()
+    except OSError:
+        pass
+HA_HEALTH = {"ok": None, "error": None if TOKEN else "no supervisor token"}
 ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer/all/teams/{}/schedule?fixture=true"
 
 lock = threading.RLock()
@@ -70,9 +78,12 @@ def ha(method, path, body=None):
                                  headers={"Authorization": "Bearer " + TOKEN, "Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
+            HA_HEALTH.update(ok=True, error=None)
             return json.loads(r.read() or b"null")
     except Exception as e:
-        log("home assistant", method, path, "failed:", e)
+        detail = e.read().decode("utf-8", "replace")[:200] if isinstance(e, urllib.error.HTTPError) else ""
+        HA_HEALTH.update(ok=False, error="%s %s: %s %s" % (method, path, e, detail))
+        log("home assistant", method, path, "failed:", e, detail)
         return None
 
 
@@ -572,7 +583,7 @@ class Api(BaseHTTPRequestHandler):
                     r = state["recording"]
                     rec = dict(r.meta) if r and r.is_alive() else None
                     np = dict(state["now_playing"])
-                self.send_json({"version": VERSION, "portal": portal() is not None, "recording": rec,
+                self.send_json({"version": VERSION, "portal": portal() is not None, "recording": rec, "ha": HA_HEALTH,
                                 "schedule": load("schedule.json", []), "now_playing": np})
             elif path == "/fixtures":
                 with lock:
