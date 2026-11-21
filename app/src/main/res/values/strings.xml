@@ -278,8 +278,6 @@
     <string name="settings_live_rewind_hint">Keeps up to about 20 minutes of the channel on the Fire TV, so you can pause and rewind with ⏯ and ◀◀ ▶▶.</string>
     <string name="settings_backup_feeds">Switch to a backup feed</string>
     <string name="settings_backup_feeds_hint">If a channel stops or keeps buffering, Hinds TV moves to another copy of it (HD, FHD, backup).</string>
-    <string name="settings_match_frame_rate">Match frame rate</string>
-    <string name="settings_match_frame_rate_hint">Switches the TV to 50 Hz for UK channels, so football looks smoother. The screen may go black for a second when it switches.</string>
     <string name="group_pinned">Pinned to the top of your groups</string>
     <string name="group_unpinned">Unpinned</string>
 

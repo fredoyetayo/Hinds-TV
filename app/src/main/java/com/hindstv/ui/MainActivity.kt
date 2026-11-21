@@ -39,8 +39,6 @@ class MainActivity : ComponentActivity() {
     private val searchVm: SearchViewModel by viewModels { SearchViewModel.Factory }
     private val settingsVm: SettingsViewModel by viewModels { SettingsViewModel.Factory }
 
-    private var frameRates: FrameRateMatcher? = null
-
     /** Keys whose DOWN we consumed; their UP must not leak into Compose (e.g. a stray click). */
     private val consumedKeys = mutableSetOf<Int>()
 
@@ -68,8 +66,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        val container = (application as HindsApp).container
-        frameRates = FrameRateMatcher(this, container.player.player) { container.profileStore.matchFrameRate }.also { it.attach() }
         vm.onForeground()
     }
 
@@ -77,8 +73,6 @@ class MainActivity : ComponentActivity() {
         videoVm.onBackground() // saves the resume position before the player stops
         radioVm.stop()
         vm.onBackground()
-        frameRates?.detach()
-        frameRates = null
         super.onStop()
     }
 

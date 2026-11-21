@@ -77,7 +77,7 @@ app/src/main/java/com/hindstv/
   player/TimeshiftBuffer.kt    live TS rewind: TimeshiftSession records the stream to segment files (tested);
                                the player reads them through TimeshiftDataSource (`timeshift://<session>/<offset>`)
   live/                        pure, tested: FeedMatcher (other feeds of a channel), FootballMatcher (guide titles,
-                               event-channel names + kick-off window), Reminder (codec, due/expiry), FrameRates
+                               event-channel names + kick-off window), Reminder (codec, due/expiry)
   player/ZapController.kt      zap debouncing (lone press = instant, bursts settle 500 ms)
   player/ResumePolicy.kt       when a video counts as started/finished and where to resume (pure, tested)
   player/Tracks.kt             TrackOption/TrackChoices + TrackLabels ("English · 5.1 · Dolby Digital", tested)
@@ -89,7 +89,6 @@ app/src/main/java/com/hindstv/
                                diagnostics; maskMac/hostOf (tested)
   ui/TrackPicker.kt            app-wide "Audio & subtitles" dialog state over the one PlayerEngine
   ui/MainActivity.kt           full-screen remote handling in dispatchKeyEvent; lifecycle → VM
-  ui/FrameRateMatcher.kt       measures the video's fps from frame timestamps, sets preferredDisplayModeId (50/60 Hz)
   ui/RemoteKeys.kt             keycode → RemoteAction mapping
   ui/tv/                       TvScreen (video, info banner, toasts), ChannelListOverlay, GuideOverlay
   ui/videos/                   VideosScreen (library rows), DetailsPage, VideoPlayerPage
@@ -189,8 +188,6 @@ tools/fake-portal/             fake Stalker portal + test streams for developmen
   TV), and the TV plays the hub's growing file (`/recordings/<id>.ts?from=end`). Changing channel while the
   hub records asks first (`RecordConflictDialog`). Recordings appear as a VOD category. Deep links:
   `hindstv://watch?channel=…`, `hindstv://football`, `hindstv://hub?url=…`.
-- **Frame rate.** `FrameRateMatcher` switches the TV to the refresh rate matching the video (25/50 fps → 50 Hz)
-  through `preferredDisplayModeId` (Fire OS 8 has no `setFrameRate` that forces HDMI changes). Settings → Playback.
 - **Self-update** (`update/`). `Updater` checks GitHub's `releases/latest` 5 s after launch and on return to
   the app (at most every 6 h); a newer `versionCode` (the tag's last number, `ReleaseInfo`, tested) shows
   `UpdateDialog`. Update now streams `hinds-tv.apk` into a `PackageInstaller` session; `InstallResultReceiver`
@@ -335,6 +332,9 @@ too; videos are seekable (`vod.mp4` with Range support).
 - The channel list is parsed as a JSON tree. Switch to streaming if a portal returns more than about 50k
   channels.
 - HLS live offset tuning is untested.
+- Matching the TV's refresh rate (`preferredDisplayModeId`) was tried and removed: on the 4K Max the HDMI
+  mode switch left the hardware decoder stuck (MediaCodec creation hung, "Detaching surface timed out",
+  every channel failing). Don't bring it back without testing zaps across 50/60 Hz channels on the stick.
 - Stalker `get_epg_info` `period` is treated as hours (12). The response is capped at 40 MB in case a portal
   reads it as days.
 - Playlist streams use the `HindsTV/0.3` user agent. Some providers may need a VLC-like one.

@@ -134,11 +134,6 @@ class ProfileStore(context: Context) {
         get() = prefs.getBoolean(KEY_BACKUP_FEEDS, true)
         set(value) = prefs.edit { putBoolean(KEY_BACKUP_FEEDS, value) }
 
-    /** Switch the TV to 50/60 Hz to suit what is playing. */
-    var matchFrameRate: Boolean
-        get() = prefs.getBoolean(KEY_MATCH_FRAME_RATE, true)
-        set(value) = prefs.edit { putBoolean(KEY_MATCH_FRAME_RATE, value) }
-
     /** ▲ goes to the previous channel instead of the next (list order). */
     var invertUpDown: Boolean
         get() = prefs.getBoolean(KEY_INVERT, false)
@@ -190,7 +185,6 @@ class ProfileStore(context: Context) {
         const val KEY_HUB_URL = "hub_url"
         const val KEY_LIVE_REWIND = "live_rewind"
         const val KEY_BACKUP_FEEDS = "backup_feeds"
-        const val KEY_MATCH_FRAME_RATE = "match_frame_rate"
         const val KEY_RECENT_CHANNELS = "recent_channels"
         const val KEY_START_WITH = "start_with"
         const val KEY_WALL_DARK = "wallpaper_dark"

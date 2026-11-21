@@ -295,9 +295,6 @@ class PlayerEngine(private val context: Context, http: OkHttpClient) {
             .build()
         val player = ExoPlayer.Builder(context, renderers, mediaSourceFactory)
             .setLoadControl(loadControl)
-            // A refresh-rate switch (FrameRateMatcher) recreates the picture surface; HDMI can take a few
-            // seconds, longer than ExoPlayer's 2 s default before it gives up with ERROR_CODE_TIMEOUT.
-            .setDetachSurfaceTimeoutMs(8_000)
             .setAudioAttributes(
                 AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),
                 /* handleAudioFocus = */ true,

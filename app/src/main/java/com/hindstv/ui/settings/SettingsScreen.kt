@@ -436,7 +436,6 @@ private fun PlaybackPane(vm: SettingsViewModel) {
     val invert by vm.invertUpDown.collectAsStateWithLifecycle()
     val rewind by vm.liveRewind.collectAsStateWithLifecycle()
     val feeds by vm.backupFeeds.collectAsStateWithLifecycle()
-    val frameRate by vm.matchFrameRate.collectAsStateWithLifecycle()
     Column(
         Modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -444,7 +443,6 @@ private fun PlaybackPane(vm: SettingsViewModel) {
         PaneTitle(stringResource(R.string.settings_playback))
         Toggle(R.string.settings_live_rewind, R.string.settings_live_rewind_hint, rewind, vm::setLiveRewind)
         Toggle(R.string.settings_backup_feeds, R.string.settings_backup_feeds_hint, feeds, vm::setBackupFeeds)
-        Toggle(R.string.settings_match_frame_rate, R.string.settings_match_frame_rate_hint, frameRate, vm::setMatchFrameRate)
         PillButton(
             stringResource(R.string.settings_invert, stringResource(if (invert) R.string.on else R.string.off)),
             onClick = { vm.setInvertUpDown(!invert) },

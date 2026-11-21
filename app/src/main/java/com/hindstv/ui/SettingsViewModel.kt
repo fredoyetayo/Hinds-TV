@@ -130,9 +130,6 @@ class SettingsViewModel(app: HindsApp) : ViewModel() {
     private val _backupFeeds = MutableStateFlow(store.backupFeeds)
     val backupFeeds: StateFlow<Boolean> = _backupFeeds.asStateFlow()
 
-    private val _matchFrameRate = MutableStateFlow(store.matchFrameRate)
-    val matchFrameRate: StateFlow<Boolean> = _matchFrameRate.asStateFlow()
-
     fun setLiveRewind(on: Boolean) {
         store.liveRewind = on // applies from the next channel
         _liveRewind.value = on
@@ -141,11 +138,6 @@ class SettingsViewModel(app: HindsApp) : ViewModel() {
     fun setBackupFeeds(on: Boolean) {
         store.backupFeeds = on
         _backupFeeds.value = on
-    }
-
-    fun setMatchFrameRate(on: Boolean) {
-        store.matchFrameRate = on
-        _matchFrameRate.value = on
     }
 
     /** Groups hidden from the channel list, with their names (ids a re-sync dropped are left out). */
